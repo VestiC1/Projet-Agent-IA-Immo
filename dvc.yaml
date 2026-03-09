@@ -1,0 +1,8 @@
+stages:
+  clean:
+    cmd: python -m scripts.datacleaning
+    deps:
+    - data/valeursfoncieres-2025-s1.txt.zip
+    - scripts/datacleaning.py
+    outs:
+    - data/clean/dvf.csv
