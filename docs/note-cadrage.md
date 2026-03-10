@@ -40,6 +40,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 - Estimation pour appartements, locaux commerciaux ou terrains
 - Modification ou publication de données
 - Authentification des utilisateurs
+- Analyse concurrentielle (SeLoger, Meilleurs Agents, PAP, etc.) — reportée après le POC. Une comparaison pertinente suppose une baseline fonctionnelle établie ; la réaliser avant le POC reviendrait à comparer des intentions à des produits matures
 
 ---
 
@@ -51,8 +52,8 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 |:---|:---|:---|
 | Modèle de prédiction | Modèle ML maison (existant) | Déjà entraîné et validé sur DVF |
 | Backend / API prédiction | FastAPI (existant) | Déjà en production |
-| Orchestration agent | LangChain | Support natif MCP, écosystème tools mature, documentation abondante |
-| LLM | GPT-4o-mini | Bon support du français, outil calling fiable, coût maîtrisé |
+| Orchestration agent | LangChain | Framework mature (2023+), mémoire de session native (`ChatMessageHistory`), large base d'exemples agents disponibles, adapté à un délai d'une semaine avec 4 tools. La validation des inputs est assurée par des schémas Pydantic définis manuellement sur chaque tool |
+| LLM | Mistral Small (api.mistral.ai) | Free tier disponible, support du français natif, tool calling fiable, stack cohérente avec les APIs françaises utilisées |
 | Base de données | PostgreSQL | Requêtes SQL structurées, ingestion DVF maîtrisée, prévisible |
 | Frontend | Templates Jinja | Intégration native avec FastAPI existant, rendu côté serveur, pas de dépendance supplémentaire |
 | Géocodage | api-adresse.data.gouv.fr | API officielle française, gratuite, sans authentification |
@@ -64,7 +65,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 ```mermaid
 flowchart TD
     U([Utilisateur]) -->|message| F[Frontend Jinja]
-    F -->|requête HTTP| A[Agent LangChain\nGPT-4o-mini]
+    F -->|requête HTTP| A[Agent LangChain\nMistral Small]
 
     A -->|tool call| T1[estimate_price]
     A -->|tool call| T2[search_transactions]
@@ -82,7 +83,9 @@ flowchart TD
 
 | Source | Données récupérées | Méthode d'accès |
 |:---|:---|:---|
-| DVF (data.gouv.fr) | Transactions immobilières maisons | Téléchargement CSV + ingestion PostgreSQL |
+| DVF (data.gouv.fr) | Transactions immobilières maisons/appartements | DVF+ Cerema — fichiers SQL par département, 1 ligne par mutation, ingestion PostgreSQL directe |
+| Communes France (data.gouv.fr) | Population, densité, superficie, statut urbain/rural par commune | Fichier CSV annuel, ingestion PostgreSQL, jointure code INSEE |
+| BPE INSEE (data.gouv.fr) | Équipements et services par commune (écoles, commerces, santé, transports — 229 types) | Fichier CSV annuel, ingestion PostgreSQL, jointure code INSEE |
 | api-adresse.data.gouv.fr | Géocodage adresse → coordonnées GPS | API REST |
 | geo.api.gouv.fr | Métadonnées communes (nom, code INSEE, département) | API REST |
 
@@ -126,7 +129,7 @@ Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
 | Lundi | Initialisation | Note de cadrage, benchmark, setup repo, ingestion DVF |
 | Mardi | Développement tools | Implémentation des 4 tools, tests unitaires |
 | Mercredi | Jalon mi-parcours | Agent fonctionnel avec au moins 2 tools, démo interne |
-| Jeudi | Intégration | Interface Streamlit, mémoire de session, tests end-to-end |
+| Jeudi | Intégration | Interface de chat Jinja, mémoire de session, tests end-to-end |
 | Vendredi | Finalisation | Documentation, nettoyage code, préparation soutenance |
 
 ---
@@ -138,7 +141,9 @@ Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
 | Ingestion DVF trop longue | Moyenne | Élevé | Restreindre à 1-2 départements |
 | API FastAPI indisponible | Faible | Élevé | Mock de l'estimation pour la démo |
 | LLM génère des paramètres invalides pour les tools | Moyenne | Moyen | Validation Pydantic sur les inputs de chaque tool |
-| Latence LLM trop élevée en démo | Faible | Moyen | GPT-4o-mini est suffisamment rapide |
+| Latence LLM trop élevée en démo | Faible | Moyen | Mistral Small est suffisamment rapide sur le free tier |
+| Transactions non géolocalisées dans DVF+ | Faible | Faible | Ces transactions tombent hors scope du filtre rayon — comportement acceptable, à documenter |
+| Projet ciblant Alsace-Moselle ou Mayotte | Nulle (hors périmètre) | Élevé | DVF non disponible pour ces territoires — hors périmètre du projet |
 
 ---
 
