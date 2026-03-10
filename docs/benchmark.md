@@ -6,7 +6,7 @@
 |:---|:---|
 | **Titre du projet** | Agent IA Immobilier |
 | **Équipe** | Jonathan, Steve, Cyril |
-| **Date** | 09/03/2026 |
+| **Date** | 09-03-2026 |
 
 ---
 
