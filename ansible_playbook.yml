@@ -1,0 +1,51 @@
+---
+- name: Déployer mon application Docker en local
+  hosts: servers
+  become: no  # Exécute les tâches avec UID=100
+
+  tasks:
+    - name: Ajouter l'utilisateur au groupe docker
+      user:
+        name: "{{ ansible_user_id }}"
+        groups: docker
+        append: yes
+
+    - name: Se connecter à GHCR (si ton dépôt est privé)
+      community.docker.docker_login:
+        registry: ghcr.io
+        username: "{{ lookup('env', 'GHCR_USER') }}"
+        password: "{{ lookup('env', 'GHCR_TOKEN') }}"
+      no_log: true
+
+    - name: Arrêter le conteneur s'il est démarré
+      community.docker.docker_container:
+        name: grp2-projet-immo
+        state: stopped
+      ignore_errors: yes
+
+    - name: Supprimer le conteneur
+      community.docker.docker_container:
+        name: grp2-projet-immo
+        state: absent
+
+    - name: Pull la dernière image
+      community.docker.docker_image:
+        name: ghcr.io/{{ lookup('env', 'GHCR_USER') | lower }}/projet-immo:latest
+        source: pull
+        force_source: yes  # Force le téléchargement même si l'image existe
+
+    - name: Remove dangling images
+      community.docker.docker_prune:
+        images: true
+        images_filters:
+          dangling: true
+
+    - name: Lancer un nouveau conteneur
+      community.docker.docker_container:
+        name: grp2-projet-immo
+        image: ghcr.io/{{ lookup('env', 'GHCR_USER') | lower }}/projet-immo:latest
+        ports: "5002:8000"
+        state: started
+        restart_policy: unless-stopped
+        networks:
+          - name: p4_network
