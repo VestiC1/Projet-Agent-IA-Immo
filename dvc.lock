@@ -1,0 +1,18 @@
+schema: '2.0'
+stages:
+  clean:
+    cmd: python -m scripts.datacleaning
+    deps:
+    - path: data/valeursfoncieres-2025-s1.txt.zip
+      hash: md5
+      md5: bbfe5cac227d6618ff7adbe9d65334ac
+      size: 26392883
+    - path: scripts/datacleaning.py
+      hash: md5
+      md5: 415d2d75c96d6bfd6d25c3bddf51588a
+      size: 1495
+    outs:
+    - path: data/clean/dvf.csv
+      hash: md5
+      md5: 8047a527d0e08d9c0e46c30a8daeab10
+      size: 50112871
