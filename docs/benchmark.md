@@ -1,4 +1,4 @@
-# RAPPORT DE BENCHMARK — AGENT IA IMMOBILIER
+# ANALYSE DES SOURCES DE DONNÉES — AGENT IA IMMOBILIER
 
 ## 1. Informations générales
 
@@ -10,147 +10,147 @@
 
 ---
 
-## 2. Objectif du benchmark
+## 2. Objectif du document
 
-Ce benchmark ne porte pas sur l'ensemble de la stack technique, dont la plupart des choix sont contraints par l'existant (FastAPI, modèle ML) ou trivialement justifiables (Streamlit, PostgreSQL). Il se concentre sur les **deux décisions architecturales réellement incertaines** :
+Ce document analyse les sources de données nécessaires à l'agent et justifie les décisions d'intégration. Il ne constitue pas un benchmark au sens strict — les comparaisons menées montrent que les décisions sont contraintes structurellement, et non le résultat d'un choix arbitraire entre options équivalentes.
 
-1. **Accès aux données DVF** : serveur MCP datagouv vs ingestion PostgreSQL locale
-2. **Framework d'orchestration de l'agent** : LangChain vs Pydantic AI
+Les choix techniques de stack (LLM, framework d'orchestration, frontend) sont documentés dans la note de cadrage.
 
 ---
 
-## 3. Choix techniques non benchmarkés
+## 3. Principe : pourquoi l'ETL via LLM est non déterministe
 
-Les décisions suivantes sont justifiées par les contraintes du projet sans nécessiter de comparaison formelle.
+Avant d'analyser chaque source, il convient de poser le cadre théorique qui sous-tend toutes les décisions de ce document.
 
-| Composant | Choix | Justification |
+Une approche MCP délègue au LLM le traitement des données brutes à chaque appel : filtrage, dédoublonnage, normalisation. Cette approche est structurellement non déterministe pour deux raisons indépendantes et cumulatives.
+
+**Non-déterminisme intrinsèque des LLM**
+
+Les LLM sont des systèmes probabilistes : même à température zéro, les APIs commerciales ne garantissent pas un output identique pour un input identique, en raison de la non-associativité des opérations flottantes sur GPU et de l'exécution concurrente des kernels CUDA [1]. Les erreurs se cumulent dans les pipelines agentiques : *"if you're using reasoning models and AI agents, then those errors can compound when earlier mistakes are used in later steps"* [2].
+
+Pour des tâches structurées à précision requise — filtrage, dédoublonnage, validation d'intégrité — la littérature est unanime : *"for financial transactions, scientific calculations, or any process where 100% accuracy and reproducibility are non-negotiable, the probabilistic nature of LLMs is a liability"* [3]. Les taux d'erreur mesurés sur des tâches d'extraction structurée atteignent 5 à 20 % sur GPT-4o et modèles équivalents [4].
+
+**Non-déterminisme des données sources**
+
+Indépendamment du LLM, les données DVF et BPE brutes présentent des ambiguïtés structurelles documentées — absence d'identifiant unique, doublons par disposition, champs manquants — qui ne peuvent pas être résolues de manière déterministe sans la clé de mutation, absente des fichiers open data depuis le décret 2018 [5]. Un LLM confronté à ces ambiguïtés produit des résolutions différentes selon le contexte — ce qui est précisément son comportement attendu, mais incompatible avec un tool d'agent dont la sortie doit être testable et reproductible.
+
+La conclusion pratique formulée par RisingWave Engineering : *"use traditional ETL/ELT tools for initial data ingestion and pre-processing. Dispatch only the relevant data"* [3]. C'est exactement l'architecture retenue : ETL à l'ingestion, LLM uniquement pour l'orchestration conversationnelle.
+
+---
+
+## 4. Sources de données retenues
+
+Trois sources alimentent l'agent, toutes ingérées en PostgreSQL et jointes sur le **code INSEE commune**.
+
+### 4.1 Transactions immobilières — DVF+ Cerema
+
+**Besoin** : recherche de ventes similaires filtrées par commune, surface, prix, date, rayon géographique.
+
+**Source retenue** : DVF+ open data du Cerema, et non le brut DGFiP.
+
+Le brut DGFiP présente des problèmes structurels qui rendent l'approche MCP non viable :
+
+| Problème DVF brut | Nature | Impact sur un ETL LLM |
 |:---|:---|:---|
-| Modèle ML | Existant (FastAPI) | Déjà entraîné, validé, déployé |
-| LLM | GPT-4o-mini | Support français fiable, tool calling stable, coût < 0,20€/1M tokens input, intégration triviale |
-| Frontend | Templates Jinja | Intégration native avec FastAPI existant, rendu côté serveur, pas de dépendance supplémentaire |
-| Géocodage | api-adresse.data.gouv.fr | API officielle gratuite, sans clé, retourne coordonnées GPS et code INSEE |
-| Infos communes | geo.api.gouv.fr | API officielle, stable, couvre toutes les communes françaises |
-| LlamaIndex | Écarté du MVP | Pertinent uniquement pour de la recherche sémantique sur texte non structuré. Pourrait être utile si une recherche par nom de rue approximatif est requise (correspondance floue sur les libellés DVF). Non retenu en MVP faute de temps, à réévaluer si ce besoin émerge |
+| Structure disposition vs mutation | 1 ligne par disposition — une vente multi-lots génère N lignes avec la même `valeur_fonciere` répétée N fois | Doublons de valeur non détectables sans clé de mutation |
+| Absence d'identifiant unique | `code_service_ch` et `refdoc` supprimés dans l'open data (décret 2018) [5] | Dédoublonnage impossible de manière déterministe |
+| 8 champs manquants | Code SPF, référence document, articles CGI, identifiant local | Qualification des mutations incomplète |
+| Volume | Plusieurs centaines de milliers de lignes par département et par an | Chargement intégral du CSV en contexte LLM |
+| Statut MCP datagouv | **Expérimental** — explicitement signalé [6] | Déconseillé pour tout usage en production |
 
----
+DVF+ Cerema résout ces problèmes structurellement : 1 ligne par mutation, identifiants reconstitués, fichiers SQL directement restaurables dans PostgreSQL [7].
 
-## 4. Benchmark 1 — Accès aux données DVF
-
-### 4.1 Contexte
-
-Les données DVF (Demandes de Valeurs Foncières) constituent la source principale pour la fonctionnalité de recherche de transactions similaires. Deux stratégies sont envisageables.
-
-### 4.2 Serveur MCP datagouv
-
-datagouv a publié le 25 février 2026 un serveur MCP expérimental ([lien](https://www.data.gouv.fr/posts/experimentation-autour-dun-serveur-mcp-pour-datagouv), code source : [github.com/datagouv/datagouv-mcp](https://github.com/datagouv/datagouv-mcp)).
-
-Les tools exposés sont :
-
-- `search_datasets` — recherche de jeux de données
-- `get_dataset_info` — métadonnées d'un jeu de données
-- `query_resource_data` — interrogation directe d'une ressource
-- `download_and_parse_resource` — téléchargement et parsing à la volée
-
-| Critère | Évaluation |
-|:---|:---|
-| Setup | Aucun — connexion directe au serveur MCP |
-| Fraîcheur des données | Toujours à jour (source officielle) |
-| Flexibilité des requêtes | Incertaine — `query_resource_data` ne garantit pas le filtrage par surface, date, périmètre |
-| Nettoyage des données | Problématique — les fichiers CSV DVF bruts contiennent des encodages mixtes, des doublons, des lignes multi-lots et des valeurs manquantes. Le nettoyage se ferait dans le contexte LLM, de manière non déterministe |
-| Périmètre maisons uniquement | Non garanti — les données brutes contiennent tous types de locaux, le filtrage dépendrait du LLM |
-| Latence | Potentiellement élevée si `download_and_parse_resource` charge un CSV départemental complet |
-| Statut | **Expérimental** — explicitement signalé comme tel par datagouv, déconseillé pour des usages fiables |
-
-### 4.3 Ingestion PostgreSQL locale
-
-Les données DVF sont disponibles en téléchargement par département sur data.gouv.fr. Le pipeline consiste à filtrer, nettoyer et charger les transactions dans une table PostgreSQL.
-
-| Critère | Évaluation |
-|:---|:---|
-| Setup | Ingestion initiale : ~2-4h pour 1-2 départements |
-| Fraîcheur des données | Snapshot au moment de l'ingestion (acceptable pour ce projet) |
-| Flexibilité des requêtes | Totale — SQL complet, filtrage par commune, surface, date, prix, rayon géographique |
-| Nettoyage des données | Réalisé une fois à l'ingestion, de manière déterministe. Pipeline partiellement réutilisable depuis le preprocessing du modèle ML |
-| Périmètre maisons uniquement | Garanti — filtre `type_local = 'Maison'` appliqué à l'ingestion |
-| Latence | Prévisible et rapide (requête SQL indexée) |
-| Statut | Stable, standard, maîtrisé |
-
-### 4.4 Décision retenue
-
-**PostgreSQL est retenu.**
-
-La principale limite du MCP datagouv est structurelle pour ce cas d'usage : les données DVF brutes nécessitent un nettoyage significatif (encodages, doublons, multi-lots, valeurs manquantes) qui ne peut pas être délégué de manière fiable au LLM. Par ailleurs, le périmètre maisons uniquement — imposé par le modèle ML — doit être garanti, ce qu'une approche MCP ne permet pas de façon déterministe.
-
-L'ingestion PostgreSQL représente un coût initial maîtrisé, et une partie du pipeline de nettoyage est réutilisable depuis le preprocessing du modèle. La requête SQL est ensuite stable, rapide et testable unitairement.
-
-Le serveur MCP datagouv reste une option intéressante pour des usages exploratoires (découverte de datasets, questions ad hoc sur des données ouvertes), mais pas pour des tools d'agent à comportement déterministe.
-
----
-
-## 5. Benchmark 2 — Framework d'orchestration de l'agent
-
-### 5.1 Contexte
-
-L'agent doit orchestrer 4 tools, maintenir un historique de conversation et s'intégrer avec PostgreSQL et des APIs REST. Le critère discriminant est l'ergonomie d'intégration des tools, notamment dans un contexte de développement rapide (une semaine).
-
-### 5.2 LangChain
-
-| Critère | Évaluation |
-|:---|:---|
-| Maturité | Très mature — framework dominant depuis 2023 |
-| Définition de tools | Décorateur `@tool` ou classe `BaseTool`, standard et bien documenté |
-| Support MCP | Package `langchain-mcp-adapters` — convertit automatiquement les tools MCP en tools LangChain |
-| Mémoire de session | `ConversationBufferMemory` ou `ChatMessageHistory`, intégré nativement |
-| Intégration LLM | Compatible OpenAI, Anthropic, Mistral, HuggingFace et autres |
-| Débogage | Verbose mais lisible avec `verbose=True` ; LangSmith pour le tracing |
-| Complexité | Abstractions parfois opaques, mais gérables à 4 tools |
-| Documentation française | Quelques ressources, documentation principale en anglais |
-| Communauté | Très active, nombreux exemples immobilier / RAG / agents |
-
-### 5.3 Pydantic AI
-
-| Critère | Évaluation |
-|:---|:---|
-| Maturité | Récent (2024-2025), en croissance rapide |
-| Définition de tools | Typage strict via Pydantic, validation automatique des inputs/outputs |
-| Support MCP | Client MCP intégré nativement |
-| Mémoire de session | Manuelle — à implémenter explicitement |
-| Intégration LLM | OpenAI, Anthropic, Gemini, Groq |
-| Débogage | Plus lisible que LangChain, moins de magie implicite |
-| Complexité | Plus léger, mais moins d'exemples disponibles pour les cas avancés |
-| Documentation française | Quasi inexistante |
-| Communauté | Active mais plus petite |
-
-### 5.4 Décision retenue
-
-**LangChain est retenu.**
-
-À 4 tools et une semaine de développement, LangChain offre le meilleur rapport entre disponibilité des exemples, support de la mémoire de session et intégration LLM. La validation des inputs des tools sera assurée par des schémas Pydantic définis manuellement, ce qui mitigue le principal avantage de Pydantic AI dans ce contexte.
-
-Pydantic AI est une alternative sérieuse pour des projets plus longs ou des équipes souhaitant éviter les abstractions de LangChain, mais son écosystème reste moins mature pour un usage en production rapide.
-
----
-
-## 6. Récapitulatif des choix
-
-| Domaine | Technologie retenue | Benchmark réalisé |
+| Axe | Métrique | Valeur |
 |:---|:---|:---|
-| Orchestration agent | LangChain | Oui — vs Pydantic AI |
-| LLM | GPT-4o-mini | Non — justifié par contraintes |
-| Accès données DVF | PostgreSQL (ingestion locale) | Oui — vs MCP datagouv |
-| Backend prédiction | FastAPI (existant) | Non — existant |
-| Frontend | Templates Jinja | Non — justifié par contraintes |
-| Géocodage | api-adresse.data.gouv.fr | Non — seule API officielle française |
-| Infos communes | geo.api.gouv.fr | Non — seule API officielle française |
+| Ingestion initiale | Durée (1-2 départements) | 1-2h (SQL prêt à l'emploi) |
+| Refresh | Fréquence officielle | Semestrielle — avril (données N-1) et octobre (données S1 N) |
+| Tool `search_transactions` | Paramètres | 5 : commune, surface ±20%, prix, date, rayon géographique |
+| | Complexité SQL | ~30 lignes, 1 index spatial |
+| | Testabilité | Unitaire, déterministe, reproductible |
+
+**Limites de couverture** :
+- Bas-Rhin, Haut-Rhin, Moselle, Mayotte — données dans le Livre Foncier (droit local), non disponibles en open data
+- Transactions non géolocalisées si parcelle absente du millésime cadastral — tombent hors scope du filtre rayon (comportement acceptable en MVP)
 
 ---
 
-## 7. Annexes
+### 4.2 Données démographiques — Communes France
 
-- Annonce serveur MCP datagouv : https://www.data.gouv.fr/posts/experimentation-autour-dun-serveur-mcp-pour-datagouv
-- Code source MCP datagouv : https://github.com/datagouv/datagouv-mcp
-- DVF sur data.gouv.fr : https://www.data.gouv.fr/fr/datasets/demandes-de-valeurs-foncieres/
-- Documentation LangChain tools : https://python.langchain.com/docs/concepts/tools/
-- Documentation Pydantic AI : https://ai.pydantic.dev/
-- API adresse : https://adresse.data.gouv.fr/api-doc/adresse
-- API géo : https://geo.api.gouv.fr/decoupage-administratif/communes
+**Besoin** : population, densité, superficie, statut urbain/rural — données absentes de geo.api.gouv.fr.
+
+**Source retenue** : dataset "Communes et villes de France" sur data.gouv.fr [8]. 46 champs par commune incluant population, superficie, densité, coordonnées GPS, code INSEE, et statut dans l'unité urbaine (`H` hors unité urbaine, `C` ville-centre, `B` banlieue, `I` ville isolée). Disponible en CSV, mis à jour annuellement.
+
+Aucune API REST disponible — téléchargement uniquement, ce qui exclut toute approche MCP.
+
+| Axe | Valeur |
+|:---|:---|
+| Ingestion | Fichier CSV unique — < 30 min |
+| Refresh | Annuel |
+| Jointure | Code INSEE commune |
+| Champs utilisés | `population`, `superficie`, `densite`, `statut_commune_unite_urbain` |
+
+---
+
+### 4.3 Équipements et services — BPE INSEE
+
+**Besoin** : présence d'écoles, commerces, services de santé, transports — contexte indispensable pour qualifier une estimation de prix immobilier.
+
+**Source retenue** : Base Permanente des Équipements (BPE) de l'INSEE [9], mise à jour annuellement. 229 types d'équipements répartis en 7 domaines : services pour les particuliers, commerces, enseignement, santé et action sociale, transports-déplacements, sports-loisirs-culture, tourisme.
+
+La BPE **n'expose pas d'API REST** — disponible uniquement en téléchargement CSV. Une approche MCP via `download_and_parse_resource` chargerait un fichier national de plusieurs millions de lignes en contexte LLM, sans filtrage structuré possible — cas d'application directe du non-déterminisme documenté en section 3.
+
+| Axe | Valeur |
+|:---|:---|
+| Ingestion | CSV, chargement PostgreSQL avec filtre sur code INSEE |
+| Refresh | Annuel |
+| Jointure | Code INSEE commune |
+| Champs utilisés | Comptage d'équipements par type et par commune (agrégation à l'ingestion) |
+
+---
+
+## 5. Architecture des données résultante
+
+Les trois sources convergent vers une architecture PostgreSQL unifiée, jointe sur le code INSEE :
+
+```
+transactions_dvf     ←→  communes_info  ←→  equipements_bpe
+(code_insee)              (code_insee)        (code_insee)
+DVF+ Cerema               Communes FR          BPE INSEE
+refresh semestriel        refresh annuel       refresh annuel
+```
+
+Le tool `get_commune_info` agrège à la requête les données des tables `communes_info` et `equipements_bpe` via une jointure SQL sur le code INSEE, sans appel externe au moment de l'exécution.
+
+---
+
+## 6. Conclusion
+
+Les trois décisions d'intégration sont contraintes structurellement :
+
+- **DVF** : absence d'identifiant unique de mutation dans l'open data → ETL LLM non déterministe → PostgreSQL (DVF+ Cerema)
+- **Communes** : données démographiques absentes de geo.api.gouv.fr, pas d'API REST → ingestion CSV locale
+- **BPE** : pas d'API REST INSEE → ingestion CSV locale
+
+Aucune de ces décisions n'est le résultat d'une préférence arbitraire. L'approche MCP aurait été retenue si les données sources avaient été propres et filtrables via une API structurée — ce n'est le cas pour aucune des trois sources.
+
+---
+
+## 7. Références
+
+[1] Thinking Machines Lab — *Defeating Nondeterminism in LLM Inference* : https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/
+
+[2] Stack Overflow Engineering — *Reliability for unreliable LLMs* : https://stackoverflow.blog/2025/06/30/reliability-for-unreliable-llms/
+
+[3] RisingWave Engineering — *From Hype to Hybrid: A Pragmatic Guide to Integrating LLMs into Your Data Pipelines* : https://risingwave.com/blog/pragmatic-guide-llms-in-etl/
+
+[4] Parseur — *The Capabilities and Limitations of Large Language Models in Document Automation* : https://parseur.com/blog/llms-document-automation-capabilities-limitations
+
+[5] GnDVF — *Précautions techniques et qualité des données DVF* : http://www.groupe-dvf.fr/vademecum-fiche-n3-precautions-techniques-et-qualite-des-donnees-dvf/
+
+[6] Annonce MCP datagouv : https://www.data.gouv.fr/posts/experimentation-autour-dun-serveur-mcp-pour-datagouv
+
+[7] DVF+ open data Cerema : https://datafoncier.cerema.fr/donnees/autres-donnees-foncieres/dvfplus-open-data
+
+[8] Communes France — data.gouv.fr : https://www.data.gouv.fr/datasets/communes-et-villes-de-france-en-csv-excel-json-parquet-et-feather
+
+[9] BPE INSEE — data.gouv.fr : https://www.data.gouv.fr/datasets/base-permanente-des-equipements-1
