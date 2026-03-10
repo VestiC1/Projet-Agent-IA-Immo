@@ -29,7 +29,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 | Fonction | Description | Source |
 |:---|:---|:---|
 | **Estimation de prix** | Estimation du prix d'une maison ou d'un appartement à partir de ses caractéristiques (surface, localisation) | Modèle ML existant via FastAPI |
-| **Recherche de transactions DVF** | Recherche de ventes similaires filtrées par critères (commune, surface, fourchette de prix, périmètre géographique) | Base PostgreSQL alimentée par DVF |
+| **Recherche de transactions DVF** | Recherche de ventes similaires filtrées par critères (commune, surface, fourchette de prix, type de bien, date) | API DVF+ Cerema (accès libre, sans authentification) |
 | **Informations sur une commune** | Données administratives et géographiques sur une commune | API geo.api.gouv.fr + api-adresse.data.gouv.fr |
 | **Interface de chat** | Conversation en langage naturel avec l'agent | LLM + framework d'orchestration |
 | **Historique des conversations** | Conservation du contexte au fil de la session | Mémoire de l'agent |
@@ -54,7 +54,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 | Backend / API prédiction | FastAPI (existant) | Déjà en production |
 | Orchestration agent | LangChain | Framework mature (2023+), mémoire de session native (`ChatMessageHistory`), large base d'exemples agents disponibles, adapté à un délai d'une semaine avec 4 tools. La validation des inputs est assurée par des schémas Pydantic définis manuellement sur chaque tool |
 | LLM | Mistral Small (api.mistral.ai) | Free tier disponible, support du français natif, tool calling fiable, stack cohérente avec les APIs françaises utilisées |
-| Base de données | PostgreSQL | Requêtes SQL structurées, ingestion DVF maîtrisée, prévisible |
+| Base de données | PostgreSQL | Utilisé uniquement pour le dénombrement BPE INSEE (une table, ingestion CSV one-shot, refresh annuel) |
 | Frontend | Templates Jinja | Intégration native avec FastAPI existant, rendu côté serveur, pas de dépendance supplémentaire |
 | Géocodage | api-adresse.data.gouv.fr | API officielle française, gratuite, sans authentification |
 | Infos communes | geo.api.gouv.fr | API officielle, couvre communes / départements / régions |
@@ -75,8 +75,9 @@ flowchart TD
     A <-->|mémoire de session| M[(Historique\nconversation)]
 
     T1 -->|HTTP POST| API[FastAPI\nModèle ML]
-    T2 -->|SQL| DB[(PostgreSQL\nDVF)]
+    T2 -->|HTTP GET| CEREMA[API DVF+ Cerema\napidf-preprod.cerema.fr]
     T3 -->|HTTP GET| GEO[geo.api.gouv.fr]
+    T3 -->|SQL| DB[(PostgreSQL\nBPE dénombrement)]
     T4 -->|HTTP GET| ADDR[api-adresse.data.gouv.fr]
 ```
 
@@ -84,40 +85,39 @@ flowchart TD
 
 | Source | Données récupérées | Méthode d'accès |
 |:---|:---|:---|
-| DVF (data.gouv.fr) | Transactions immobilières maisons/appartements | DVF+ Cerema — fichiers SQL par département, 1 ligne par mutation, ingestion PostgreSQL directe |
-| Communes France (data.gouv.fr) | Population, densité, superficie, statut urbain/rural par commune | Fichier CSV annuel, ingestion PostgreSQL, jointure code INSEE |
-| BPE INSEE (data.gouv.fr) | Équipements et services par commune (écoles, commerces, santé, transports — 229 types) | Fichier CSV annuel, ingestion PostgreSQL, jointure code INSEE |
+| API DVF+ Cerema (apidf-preprod.cerema.fr) | Transactions immobilières maisons/appartements — 1 ligne par mutation, géométrie parcelle, prix, surface, date | API REST, accès libre, sans authentification, filtres `codtypbien`, `anneemut_min/max`, `valeurfonc_min/max`, `sbati_min/max`, pagination |
+| BPE INSEE (data.gouv.fr) | Dénombrement d'équipements par commune (écoles, commerces, santé, transports — 229 types) | Fichier CSV annuel, ingestion PostgreSQL one-shot, jointure code INSEE |
 | api-adresse.data.gouv.fr | Géocodage adresse → coordonnées GPS | API REST |
-| geo.api.gouv.fr | Métadonnées communes (nom, code INSEE, département) | API REST |
+| geo.api.gouv.fr | Métadonnées communes (nom, code INSEE, population, superficie, département) | API REST |
 
 ### 4.4 Outils de l'agent (tools)
 
 | Nom de l'outil | Description | Source |
 |:---|:---|:---|
 | `estimate_price` | Appelle l'API FastAPI existante avec surface + coordonnées GPS | FastAPI interne |
-| `search_transactions` | Recherche des ventes DVF filtrées (commune, surface ±20%, date, périmètre) | PostgreSQL |
-| `get_commune_info` | Retourne les informations administratives d'une commune à partir d'un nom ou code INSEE | geo.api.gouv.fr |
+| `search_transactions` | Recherche des ventes DVF filtrées (commune, surface, prix, date, type de bien) — retourne centroïde parcelle comme coordonnées | API DVF+ Cerema |
+| `get_commune_info` | Retourne les informations administratives et le dénombrement des équipements d'une commune | geo.api.gouv.fr + table `bpe_denombrement` |
 | `geocode_address` | Convertit une adresse en coordonnées GPS | api-adresse.data.gouv.fr |
 
 ---
 
 ## 5. Modélisation des données
 
-### Table `transactions_dvf`
+### Table `bpe_denombrement`
+
+Seule table PostgreSQL du projet — ingestion one-shot depuis le CSV dénombrement BPE INSEE, refresh annuel.
 
 | Colonne | Type | Description |
 |:---|:---|:---|
-| id | SERIAL PRIMARY KEY | Identifiant interne |
-| date_mutation | DATE | Date de la transaction |
-| commune | VARCHAR | Nom de la commune |
-| code_insee | VARCHAR(5) | Code INSEE de la commune |
-| surface_reelle_bati | FLOAT | Surface habitable en m² |
-| valeur_fonciere | FLOAT | Prix de vente en euros |
-| latitude | FLOAT | Latitude (géocodée) |
-| longitude | FLOAT | Longitude (géocodée) |
-| prix_m2 | FLOAT | Valeur calculée à l'ingestion |
+| code_insee | VARCHAR(5) PRIMARY KEY | Code INSEE de la commune |
+| nb_ecoles | INT | Nombre d'établissements scolaires |
+| nb_medecins | INT | Nombre de médecins généralistes |
+| nb_commerces | INT | Nombre de commerces |
+| nb_transports | INT | Nombre d'équipements de transport |
+| nb_sports_loisirs | INT | Nombre d'équipements sportifs et culturels |
+| nb_services | INT | Nombre de services aux particuliers |
 
-Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
+Les transactions DVF sont interrogées à la volée via l'API Cerema — aucun stockage local.
 
 ---
 
@@ -139,11 +139,11 @@ Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
 
 | Risque | Probabilité | Impact | Plan B |
 |:---|:---|:---|:---|
-| Ingestion DVF trop longue | Moyenne | Élevé | Restreindre à 1-2 départements |
+| API Cerema indisponible (502, timeout) | Faible | Élevé | Message d'erreur gracieux dans le tool, retry avec backoff |
 | API FastAPI indisponible | Faible | Élevé | Mock de l'estimation pour la démo |
 | LLM génère des paramètres invalides pour les tools | Moyenne | Moyen | Validation Pydantic sur les inputs de chaque tool |
 | Latence LLM trop élevée en démo | Faible | Moyen | Mistral Small est suffisamment rapide sur le free tier |
-| Transactions non géolocalisées dans DVF+ | Faible | Faible | Ces transactions tombent hors scope du filtre rayon — comportement acceptable, à documenter |
+| Transactions non géolocalisées dans DVF+ | Faible | Faible | Parcelle absente du cadastre vectoriel — centroïde non calculable, transaction ignorée |
 | Projet ciblant Alsace-Moselle ou Mayotte | Nulle (hors périmètre) | Élevé | DVF non disponible pour ces territoires — hors périmètre du projet |
 
 ---

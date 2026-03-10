@@ -6,7 +6,7 @@
 |:---|:---|
 | **Titre du projet** | Agent IA Immobilier |
 | **Équipe** | Jonathan, Steve, Cyril |
-| **Date** | 09-03-2026 |
+| **Date** | 09/03/2026 |
 
 ---
 
@@ -42,96 +42,102 @@ La conclusion pratique formulée par RisingWave Engineering : *"use traditional 
 
 Trois sources alimentent l'agent, toutes ingérées en PostgreSQL et jointes sur le **code INSEE commune**.
 
-### 4.1 Transactions immobilières — DVF+ Cerema
+### 4.1 Transactions immobilières — API DVF+ Cerema
 
-**Besoin** : recherche de ventes similaires filtrées par commune, surface, prix, date, rayon géographique.
+**Besoin** : recherche de ventes similaires filtrées par commune, surface, prix, type de bien, date.
 
-**Source retenue** : DVF+ open data du Cerema, et non le brut DGFiP.
+**Source retenue** : API DVF+ open data du Cerema (`apidf-preprod.cerema.fr`), accès libre sans authentification.
 
-Le brut DGFiP présente des problèmes structurels qui rendent l'approche MCP non viable :
+L'approche retenue est **API-only** — aucune ingestion locale, aucun stockage PostgreSQL pour les transactions. Le tool `search_transactions` interroge directement l'API à chaque requête utilisateur avec les paramètres filtrés.
 
-| Problème DVF brut | Nature | Impact sur un ETL LLM |
-|:---|:---|:---|
-| Structure disposition vs mutation | 1 ligne par disposition — une vente multi-lots génère N lignes avec la même `valeur_fonciere` répétée N fois | Doublons de valeur non détectables sans clé de mutation |
-| Absence d'identifiant unique | `code_service_ch` et `refdoc` supprimés dans l'open data (décret 2018) [5] | Dédoublonnage impossible de manière déterministe |
-| 8 champs manquants | Code SPF, référence document, articles CGI, identifiant local | Qualification des mutations incomplète |
-| Volume | Plusieurs centaines de milliers de lignes par département et par an | Chargement intégral du CSV en contexte LLM |
-| Statut MCP datagouv | **Expérimental** — explicitement signalé [6] | Déconseillé pour tout usage en production |
+**Paramètres de filtrage disponibles sur l'endpoint `/dvf_opendata/geomutations/`** :
 
-DVF+ Cerema résout ces problèmes structurellement : 1 ligne par mutation, identifiants reconstitués, fichiers SQL directement restaurables dans PostgreSQL [7].
+| Paramètre | Description |
+|:---|:---|
+| `code_insee` | Code INSEE communal — jusqu'à 10 communes séparées par virgule, même département |
+| `codtypbien` | Type de bien — `11` maisons, `12` appartements (filtre par préfixe) |
+| `anneemut_min` / `anneemut_max` | Filtre temporel par année |
+| `valeurfonc_min` / `valeurfonc_max` | Fourchette de prix en euros |
+| `sbati_min` / `sbati_max` | Surface bâtie en m² |
+| `idnatmut` | Nature de mutation — `1` = vente |
+| `page_size` | Pagination |
 
-| Axe | Métrique | Valeur |
-|:---|:---|:---|
-| Ingestion initiale | Durée (1-2 départements) | 1-2h (SQL prêt à l'emploi) |
-| Refresh | Fréquence officielle | Semestrielle — avril (données N-1) et octobre (données S1 N) |
-| Tool `search_transactions` | Paramètres | 5 : commune, surface ±20%, prix, date, rayon géographique |
-| | Complexité SQL | ~30 lignes, 1 index spatial |
-| | Testabilité | Unitaire, déterministe, reproductible |
+**Réponse** : GeoJSON avec géométrie de la parcelle cadastrale (polygone). Les coordonnées lat/lng sont obtenues en calculant le centroïde du polygone côté Python (`shapely`). Les adresses ne sont pas disponibles dans le tier open data — masquées depuis le décret 2018.
 
 **Limites de couverture** :
-- Bas-Rhin, Haut-Rhin, Moselle, Mayotte — données dans le Livre Foncier (droit local), non disponibles en open data
-- Transactions non géolocalisées si parcelle absente du millésime cadastral — tombent hors scope du filtre rayon (comportement acceptable en MVP)
-
----
-
-### 4.2 Données démographiques — Communes France
-
-**Besoin** : population, densité, superficie, statut urbain/rural — données absentes de geo.api.gouv.fr.
-
-**Source retenue** : dataset "Communes et villes de France" sur data.gouv.fr [8]. 46 champs par commune incluant population, superficie, densité, coordonnées GPS, code INSEE, et statut dans l'unité urbaine (`H` hors unité urbaine, `C` ville-centre, `B` banlieue, `I` ville isolée). Disponible en CSV, mis à jour annuellement.
-
-Aucune API REST disponible — téléchargement uniquement, ce qui exclut toute approche MCP.
+- Bas-Rhin, Haut-Rhin, Moselle, Mayotte — données dans le Livre Foncier (droit local), non disponibles
+- Parcelles absentes du cadastre vectoriel — géométrie null, centroïde non calculable, transaction ignorée
 
 | Axe | Valeur |
 |:---|:---|
-| Ingestion | Fichier CSV unique — < 30 min |
-| Refresh | Annuel |
-| Jointure | Code INSEE commune |
-| Champs utilisés | `population`, `superficie`, `densite`, `statut_commune_unite_urbain` |
+| Authentification | Aucune |
+| Latence | Acceptable pour usage interactif |
+| Disponibilité | Beta — risque 502 documenté, géré par retry avec backoff |
+| Refresh données | Semestriel (avril / octobre) côté Cerema, transparent pour l'agent |
 
 ---
 
-### 4.3 Équipements et services — BPE INSEE
+### 4.2 Données démographiques — geo.api.gouv.fr
 
-**Besoin** : présence d'écoles, commerces, services de santé, transports — contexte indispensable pour qualifier une estimation de prix immobilier.
+**Besoin** : population, superficie, densité, statut urbain/rural, coordonnées.
 
-**Source retenue** : Base Permanente des Équipements (BPE) de l'INSEE [9], mise à jour annuellement. 229 types d'équipements répartis en 7 domaines : services pour les particuliers, commerces, enseignement, santé et action sociale, transports-déplacements, sports-loisirs-culture, tourisme.
+**Source retenue** : `geo.api.gouv.fr`, API REST officielle, accès libre, sans authentification, 50 appels/seconde.
 
-La BPE **n'expose pas d'API REST** — disponible uniquement en téléchargement CSV. Une approche MCP via `download_and_parse_resource` chargerait un fichier national de plusieurs millions de lignes en contexte LLM, sans filtrage structuré possible — cas d'application directe du non-déterminisme documenté en section 3.
+Les champs disponibles via le paramètre `fields` couvrent l'ensemble des besoins : `nom`, `code`, `population`, `surface`, `centre`, `contour`, `departement`, `region`, `epci`. Le tool `get_commune_info` interroge cette API directement à chaque requête — aucun stockage local nécessaire.
 
 | Axe | Valeur |
 |:---|:---|
-| Ingestion | CSV, chargement PostgreSQL avec filtre sur code INSEE |
+| Authentification | Aucune |
+| Champs utilisés | `population`, `surface`, `centre`, `departement` |
+| Arrondissements Paris/Lyon/Marseille | Gérés nativement par l'API via les codes INSEE d'arrondissement |
+
+---
+
+### 4.3 Équipements et services — BPE INSEE (dénombrement)
+
+**Besoin** : présence et quantité d'écoles, commerces, services de santé, transports — contexte indispensable pour qualifier une estimation de prix immobilier.
+
+**Source retenue** : fichier de **dénombrement par commune** de la Base Permanente des Équipements (BPE) INSEE [9], mis à jour annuellement. Ce fichier donne les comptages d'équipements par type pour chaque commune (une ligne = une commune) — il ne contient pas les adresses individuelles des équipements, ce qui est suffisant pour le `get_commune_info` tool.
+
+La BPE **n'expose pas d'API REST**. Deux fichiers sont disponibles :
+- **Fichier géolocalisé `Ensemble_xy`** — une ligne par équipement individuel, plusieurs millions de lignes France entière, nécessite nettoyage et agrégation → écarté
+- **Fichier dénombrement par commune** — déjà agrégé par l'INSEE, ~35 000 lignes, propre, ingestion triviale → **retenu**
+
+| Axe | Valeur |
+|:---|:---|
+| Ingestion | CSV unique — < 15 min, aucun nettoyage nécessaire |
+| Volume | ~35 000 lignes (une par commune) |
 | Refresh | Annuel |
-| Jointure | Code INSEE commune |
-| Champs utilisés | Comptage d'équipements par type et par commune (agrégation à l'ingestion) |
+| Jointure | Code INSEE commune — cohérent avec DVF+ et geo.api.gouv.fr, arrondissements Paris/Lyon/Marseille gérés nativement |
+| Champs utilisés | Comptages par domaine : enseignement, santé, commerces, transports, sports-loisirs, services |
 
 ---
 
 ## 5. Architecture des données résultante
 
-Les trois sources convergent vers une architecture PostgreSQL unifiée, jointe sur le code INSEE :
+L'approche est **API-first** : seule la BPE nécessite un stockage local, faute d'API REST disponible. Les transactions DVF et les données communes sont interrogées à la volée.
 
 ```
-transactions_dvf     ←→  communes_info  ←→  equipements_bpe
-(code_insee)              (code_insee)        (code_insee)
-DVF+ Cerema               Communes FR          BPE INSEE
-refresh semestriel        refresh annuel       refresh annuel
+search_transactions    →  API DVF+ Cerema          (accès libre, filtres natifs)
+get_commune_info       →  geo.api.gouv.fr           (accès libre)
+                       +  PostgreSQL bpe_denombrement  (CSV INSEE, ~35k lignes)
+geocode_address        →  api-adresse.data.gouv.fr  (accès libre)
+estimate_price         →  FastAPI interne
 ```
 
-Le tool `get_commune_info` agrège à la requête les données des tables `communes_info` et `equipements_bpe` via une jointure SQL sur le code INSEE, sans appel externe au moment de l'exécution.
+Le tool `get_commune_info` combine les deux sources à l'exécution : appel `geo.api.gouv.fr` pour les données administratives, requête SQL sur `bpe_denombrement` pour les équipements.
 
 ---
 
 ## 6. Conclusion
 
-Les trois décisions d'intégration sont contraintes structurellement :
+L'architecture résultante est API-first avec un minimum de stockage local :
 
-- **DVF** : absence d'identifiant unique de mutation dans l'open data → ETL LLM non déterministe → PostgreSQL (DVF+ Cerema)
-- **Communes** : données démographiques absentes de geo.api.gouv.fr, pas d'API REST → ingestion CSV locale
-- **BPE** : pas d'API REST INSEE → ingestion CSV locale
+- **DVF** : API Cerema DVF+ open data — filtrage natif, accès libre, pas d'ingestion → approche MCP viable car l'API est structurée et déterministe
+- **Communes** : geo.api.gouv.fr — API REST officielle, couvre tous les besoins administratifs → pas de stockage local
+- **BPE** : pas d'API REST INSEE → seul cas nécessitant PostgreSQL, limité au fichier dénombrement (~35k lignes, propre, ingestion < 15 min)
 
-Aucune de ces décisions n'est le résultat d'une préférence arbitraire. L'approche MCP aurait été retenue si les données sources avaient été propres et filtrables via une API structurée — ce n'est le cas pour aucune des trois sources.
+La règle formulée en section 3 reste valide pour la BPE : sans API structurée, l'ingestion locale est préférable à un ETL LLM sur un CSV national de plusieurs millions de lignes.
 
 ---
 
