@@ -6,8 +6,8 @@
 |:---|:---|
 | **Titre du projet** | Agent IA Immobilier |
 | **Équipe** | Jonathan, Steve, Cyril |
-| **Date de début** | 09-03-2026 |
-| **Date de livraison** | 13-03-2026 |
+| **Date de début** | 09/03/2026 |
+| **Date de livraison** | 13/03/2026 |
 | **Dépôt GitHub** | https://github.com/VestiC1/Projet-Agent-IA-Immo.git |
 
 ---
@@ -28,7 +28,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 
 | Fonction | Description | Source |
 |:---|:---|:---|
-| **Estimation de prix** | Estimation du prix d'une maison à partir de ses caractéristiques (surface, localisation) | Modèle ML existant via FastAPI |
+| **Estimation de prix** | Estimation du prix d'une maison ou d'un appartement à partir de ses caractéristiques (surface, localisation) | Modèle ML existant via FastAPI |
 | **Recherche de transactions DVF** | Recherche de ventes similaires filtrées par critères (commune, surface, fourchette de prix, périmètre géographique) | Base PostgreSQL alimentée par DVF |
 | **Informations sur une commune** | Données administratives et géographiques sur une commune | API geo.api.gouv.fr + api-adresse.data.gouv.fr |
 | **Interface de chat** | Conversation en langage naturel avec l'agent | LLM + framework d'orchestration |
@@ -37,7 +37,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 ### 3.2 Hors périmètre
 
 - Recherche de biens à louer ou à vendre en temps réel (annonces)
-- Estimation pour appartements, locaux commerciaux ou terrains
+- Estimation pour locaux commerciaux ou terrains
 - Modification ou publication de données
 - Authentification des utilisateurs
 - Analyse concurrentielle (SeLoger, Meilleurs Agents, PAP, etc.) — reportée après le POC. Une comparaison pertinente suppose une baseline fonctionnelle établie ; la réaliser avant le POC reviendrait à comparer des intentions à des produits matures
@@ -59,6 +59,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 | Géocodage | api-adresse.data.gouv.fr | API officielle française, gratuite, sans authentification |
 | Infos communes | geo.api.gouv.fr | API officielle, couvre communes / départements / régions |
 | Versionnement | Git + GitHub | Standard du projet |
+| Monitoring agent | LangSmith | Tracing des appels LLM et tool calls, visualisation des chaînes d'exécution, détection des erreurs agentiques |
 
 ### 4.2 Schéma d'architecture
 
@@ -151,10 +152,10 @@ Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
 
 ### MVP (minimum acceptable vendredi)
 
-- [x] L'agent répond en français à une question d'estimation de prix
-- [x] L'agent retourne des transactions DVF filtrées par commune
-- [x] L'interface de chat fonctionne de bout en bout
-- [x] Le contexte de conversation est conservé sur la session
+- [ ] L'agent répond en français à une question d'estimation de prix
+- [ ] L'agent retourne des transactions DVF filtrées par commune
+- [ ] L'interface de chat fonctionne de bout en bout
+- [ ] Le contexte de conversation est conservé sur la session
 
 ### Nice to have
 
