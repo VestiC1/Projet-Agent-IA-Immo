@@ -6,8 +6,8 @@
 |:---|:---|
 | **Titre du projet** | Agent IA Immobilier |
 | **Équipe** | Jonathan, Steve, Cyril |
-| **Date de début** | 09/03/2026 |
-| **Date de livraison** | 13/03/2026 |
+| **Date de début** | 09-03-2026 |
+| **Date de livraison** | 13-03-2026 |
 | **Dépôt GitHub** | https://github.com/VestiC1/Projet-Agent-IA-Immo.git |
 
 ---
@@ -151,10 +151,10 @@ Filtre appliqué à l'ingestion : `type_local IN ('Maison', 'Appartement')`
 
 ### MVP (minimum acceptable vendredi)
 
-- [ ] L'agent répond en français à une question d'estimation de prix
-- [ ] L'agent retourne des transactions DVF filtrées par commune
-- [ ] L'interface de chat fonctionne de bout en bout
-- [ ] Le contexte de conversation est conservé sur la session
+- [x] L'agent répond en français à une question d'estimation de prix
+- [x] L'agent retourne des transactions DVF filtrées par commune
+- [x] L'interface de chat fonctionne de bout en bout
+- [x] Le contexte de conversation est conservé sur la session
 
 ### Nice to have
 
