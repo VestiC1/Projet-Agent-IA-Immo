@@ -12,7 +12,7 @@
 
 ## 2. Objectif du benchmark
 
-Ce benchmark ne porte pas sur l'ensemble de la stack technique, dont la plupart des choix sont contraints par l'existant (FastAPI, modèle ML) ou trivialement justifiables (Streamlit, PostgreSQL). Il se concentre sur les **deux décisions architecturales réellement incertaines** :
+Ce benchmark ne porte pas sur l'ensemble de la stack technique, dont la plupart des choix sont contraints par l'existant (FastAPI, modèle ML) ou trivialement justifiables (Templates Jinja, PostgreSQL). Il se concentre sur les **deux décisions architecturales réellement incertaines** :
 
 1. **Accès aux données DVF** : serveur MCP datagouv vs ingestion PostgreSQL locale
 2. **Framework d'orchestration de l'agent** : LangChain vs Pydantic AI
