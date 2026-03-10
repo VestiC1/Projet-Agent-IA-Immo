@@ -89,14 +89,12 @@ estimation, historique, environnement immobilier.
 
 *Décrivez les principales tables que vous allez créer dans PostgreSQL :*
 
-**Table 1 :**
-
+**Table 1 :** 
 - Colonnes :
 - Clé primaire :
 - Relations :
 
-**Table 2 :**
-
+**Table 2 :** 
 - Colonnes :
 - Clé primaire :
 - Relations :
@@ -106,6 +104,8 @@ estimation, historique, environnement immobilier.
 ### 4.2 Schéma relationnel (optionnel)
 
 *Si vous avez un schéma, vous pouvez le décrire ou l'inclure en lien :*
+
+
 
 ---
 
