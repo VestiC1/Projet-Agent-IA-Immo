@@ -15,8 +15,15 @@ MODEL_DIR = ROOT / "model"
 MODEL_CHARAC = MODEL_DIR / "characterization"
 
 DEPLOYED_MODEL_PATH = MODEL_DIR / "model.onnx"
+
 # DVF file
 DVF = DATA_DIR / "valeursfoncieres-2025-s1.txt.zip"
+
+# BPE file
+BPE_INSEE = DATA_DIR / "BPE_INSEE"
+
+# DuckDB
+BPE_INSEE_DB = DATA_DIR / "bpe_insee.duckdb"
 
 # Token database
 TOKENDB = DATA_DIR / "tokendb.json"

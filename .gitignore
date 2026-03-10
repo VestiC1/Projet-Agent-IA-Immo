@@ -207,14 +207,14 @@ marimo/_lsp/
 __marimo__/
 
 # Dossier Data
-data/*.zip
-data/clean/*.csv
+data/*
 
 # Dossier Model
 model/*.pkl
 model/*.onnx
 model/characterization/*.csv
 !model/deploy/*.pkl
+
 # Dossier mlruns
 mlruns/
 data/clean/*
