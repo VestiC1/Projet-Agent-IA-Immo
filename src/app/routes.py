@@ -11,6 +11,15 @@ from src.inference.model import get_model, get_estimation
 from src.app.monitoring.prometheus_metrics import track_inference_time
 import time
 
+from pydantic import BaseModel
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: list[Message]
+
 router = APIRouter()
 templates = Jinja2Templates(directory="src/app/templates")
 
@@ -55,3 +64,11 @@ async def predict(
     context['request'] = request
     
     return templates.TemplateResponse("prediction.html", context)
+
+@router.get("/chatbot", tags=["Chat"], response_class=HTMLResponse)
+async def chatbot(request: Request):
+    return templates.TemplateResponse("chatbot.html", {"request": request})
+
+@router.post("/chat", tags=["Chat"], response_class=JSONResponse)
+async def chatbot(request : ChatRequest):
+    return JSONResponse(content={"message": request.messages[-1].content})
