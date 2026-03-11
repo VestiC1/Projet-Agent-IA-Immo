@@ -54,7 +54,7 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 | Backend / API prédiction | FastAPI (existant) | Déjà en production |
 | Orchestration agent | LangChain | Framework mature (2023+), mémoire de session native (`ChatMessageHistory`), large base d'exemples agents disponibles, adapté à un délai d'une semaine avec 4 tools. La validation des inputs est assurée par des schémas Pydantic définis manuellement sur chaque tool |
 | LLM | Mistral Small (api.mistral.ai) | Free tier disponible, support du français natif, tool calling fiable, stack cohérente avec les APIs françaises utilisées |
-| Base de données | PostgreSQL | Utilisé uniquement pour le dénombrement BPE INSEE (une table, ingestion CSV one-shot, refresh annuel) |
+| Base de données | DuckDB | Utilisé uniquement pour le dénombrement BPE INSEE (une table, ingestion CSV one-shot, refresh annuel) — fichier embarqué, pas de serveur à gérer |
 | Frontend | Templates Jinja | Intégration native avec FastAPI existant, rendu côté serveur, pas de dépendance supplémentaire |
 | Géocodage | api-adresse.data.gouv.fr | API officielle française, gratuite, sans authentification |
 | Infos communes | geo.api.gouv.fr | API officielle, couvre communes / départements / régions |
@@ -77,7 +77,7 @@ flowchart TD
     T1 -->|HTTP POST| API[FastAPI\nModèle ML]
     T2 -->|HTTP GET| CEREMA[API DVF+ Cerema\napidf-preprod.cerema.fr]
     T3 -->|HTTP GET| GEO[geo.api.gouv.fr]
-    T3 -->|SQL| DB[(PostgreSQL\nBPE dénombrement)]
+    T3 -->|SQL| DB[(DuckDB\nBPE dénombrement)]
     T4 -->|HTTP GET| ADDR[api-adresse.data.gouv.fr]
 ```
 
@@ -85,8 +85,8 @@ flowchart TD
 
 | Source | Données récupérées | Méthode d'accès |
 |:---|:---|:---|
-| API DVF+ Cerema (apidf-preprod.cerema.fr) | Transactions immobilières maisons/appartements — 1 ligne par mutation, géométrie parcelle, prix, surface, date | API REST, accès libre, sans authentification, filtres `codtypbien`, `anneemut_min/max`, `valeurfonc_min/max`, `sbati_min/max`, pagination |
-| BPE INSEE (data.gouv.fr) | Dénombrement d'équipements par commune (écoles, commerces, santé, transports — 229 types) | Fichier CSV annuel, ingestion PostgreSQL one-shot, jointure code INSEE |
+| API DVF+ Cerema (apidf-preprod.cerema.fr) | Transactions immobilières maisons/appartements — 1 ligne par mutation, géométrie parcelle, prix, surface, date | API REST, accès libre, sans authentification, filtres `codtypbien`, `anneemut_min/max`, `valeurfonc_min/max`, `sbati_min/max`, pagination — récupération parallèle asynchrone (`asyncio.gather`, sémaphore 5 requêtes simultanées), cache disque 30 jours (`diskcache`) |
+| BPE INSEE (data.gouv.fr) | Dénombrement d'équipements par commune (écoles, commerces, santé, transports — 229 types) | Fichier CSV annuel, ingestion DuckDB one-shot, jointure code INSEE |
 | api-adresse.data.gouv.fr | Géocodage adresse → coordonnées GPS | API REST |
 | geo.api.gouv.fr | Métadonnées communes (nom, code INSEE, population, superficie, département) | API REST |
 
@@ -105,7 +105,7 @@ flowchart TD
 
 ### Table `bpe_denombrement`
 
-Seule table PostgreSQL du projet — ingestion one-shot depuis le CSV dénombrement BPE INSEE, refresh annuel.
+Seule table du projet — ingestion one-shot depuis le CSV dénombrement BPE INSEE dans **DuckDB** (fichier embarqué, pas de serveur), refresh annuel.
 
 | Colonne | Type | Description |
 |:---|:---|:---|

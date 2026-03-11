@@ -48,7 +48,19 @@ Trois sources alimentent l'agent, toutes ingérées en PostgreSQL et jointes sur
 
 **Source retenue** : API DVF+ open data du Cerema (`apidf-preprod.cerema.fr`), accès libre sans authentification.
 
-L'approche retenue est **API-only** — aucune ingestion locale, aucun stockage PostgreSQL pour les transactions. Le tool `search_transactions` interroge directement l'API à chaque requête utilisateur avec les paramètres filtrés.
+L'approche retenue est **API-only** — aucune ingestion locale, aucun stockage pour les transactions. Le tool `search_transactions` interroge directement l'API à chaque requête utilisateur, avec les paramètres filtrés.
+
+**Stratégie de récupération — pagination parallèle asynchrone**
+
+L'API pagine les résultats avec `page_size` maximal de 100. Pour une commune comme Tours (~900 transactions sur 2 ans), cela représente ~9 pages. La stratégie retenue :
+
+1. Premier appel synchrone sur `page=1` pour récupérer `count` et les premières features
+2. Calcul du nombre total de pages (`math.ceil(count / page_size)`)
+3. Récupération concurrente des pages restantes via `asyncio.gather` avec un `asyncio.Semaphore(5)` pour limiter la pression sur l'API Cerema
+
+**Cache disque — `diskcache`**
+
+Ce qui est mis en cache est la **réponse brute de l'API** (liste des features GeoJSON), pas les transactions filtrées. La clé de cache est `cerema:{code_insee}:{type_bien}:{annee_min}:{annee_max}`. Le TTL est fixé à **30 jours** : les données DVF sont historiques et immuables — une mutation enregistrée ne change jamais. Le rafraîchissement semestriel de l'API (avril/octobre) est géré naturellement par l'expiration du cache. En production Docker, le cache est monté sur un volume nommé pour persister entre les redémarrages.
 
 **Paramètres de filtrage disponibles sur l'endpoint `/dvf_opendata/geomutations/`** :
 
@@ -71,7 +83,8 @@ L'approche retenue est **API-only** — aucune ingestion locale, aucun stockage 
 | Axe | Valeur |
 |:---|:---|
 | Authentification | Aucune |
-| Latence | Acceptable pour usage interactif |
+| Latence premier appel | ~1-2s pour une commune moyenne (pagination parallèle) |
+| Latence appel suivant | < 1ms (cache disque, TTL 30 jours) |
 | Disponibilité | Beta — risque 502 documenté, géré par retry avec backoff |
 | Refresh données | Semestriel (avril / octobre) côté Cerema, transparent pour l'agent |
 
@@ -106,6 +119,7 @@ La BPE **n'expose pas d'API REST**. Deux fichiers sont disponibles :
 | Axe | Valeur |
 |:---|:---|
 | Ingestion | CSV unique — < 15 min, aucun nettoyage nécessaire |
+| Stockage | DuckDB — fichier embarqué, pas de serveur, requêtes SQL standard |
 | Volume | ~35 000 lignes (une par commune) |
 | Refresh | Annuel |
 | Jointure | Code INSEE commune — cohérent avec DVF+ et geo.api.gouv.fr, arrondissements Paris/Lyon/Marseille gérés nativement |
@@ -118,9 +132,9 @@ La BPE **n'expose pas d'API REST**. Deux fichiers sont disponibles :
 L'approche est **API-first** : seule la BPE nécessite un stockage local, faute d'API REST disponible. Les transactions DVF et les données communes sont interrogées à la volée.
 
 ```
-search_transactions    →  API DVF+ Cerema          (accès libre, filtres natifs)
+search_transactions    →  API DVF+ Cerema          (accès libre, filtres natifs, pagination parallèle async, cache disque 30j)
 get_commune_info       →  geo.api.gouv.fr           (accès libre)
-                       +  PostgreSQL bpe_denombrement  (CSV INSEE, ~35k lignes)
+                       +  DuckDB bpe_denombrement   (CSV INSEE, ~35k lignes)
 geocode_address        →  api-adresse.data.gouv.fr  (accès libre)
 estimate_price         →  FastAPI interne
 ```
@@ -133,9 +147,9 @@ Le tool `get_commune_info` combine les deux sources à l'exécution : appel `geo
 
 L'architecture résultante est API-first avec un minimum de stockage local :
 
-- **DVF** : API Cerema DVF+ open data — filtrage natif, accès libre, pas d'ingestion → approche MCP viable car l'API est structurée et déterministe
+- **DVF** : API Cerema DVF+ open data — filtrage natif, accès libre, pagination parallèle async (`asyncio.gather` + `Semaphore(5)`), cache disque 30 jours → pas d'ingestion
 - **Communes** : geo.api.gouv.fr — API REST officielle, couvre tous les besoins administratifs → pas de stockage local
-- **BPE** : pas d'API REST INSEE → seul cas nécessitant PostgreSQL, limité au fichier dénombrement (~35k lignes, propre, ingestion < 15 min)
+- **BPE** : pas d'API REST INSEE → seul cas nécessitant un stockage local, limité au fichier dénombrement (~35k lignes, propre, ingestion < 15 min) dans **DuckDB** (fichier embarqué, zéro infrastructure)
 
 La règle formulée en section 3 reste valide pour la BPE : sans API structurée, l'ingestion locale est préférable à un ETL LLM sur un CSV national de plusieurs millions de lignes.
 
