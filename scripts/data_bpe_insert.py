@@ -1,7 +1,7 @@
 from config import BPE_INSEE, BPE_INSEE_DB
 import duckdb
 import pandas as pd
-from src.agent.tools.commune_info import get_commune_info
+from src.agents.tools.commune_info import get_commune_info
 
 
 con = duckdb.connect(BPE_INSEE_DB)
@@ -30,7 +30,7 @@ def clean(df : pd.DataFrame) :
     return df
 
 def main():
-    """
+    
     create_schema(con)
     for file in BPE_INSEE.glob("*"):
 
@@ -45,7 +45,7 @@ def main():
         df['count_bpe']  = compute_sum(df)
         print("count insert")
         add_line(con=con, table="count_equipements", col=col, df=df)
-    """
+    
     df = con.sql("SELECT * FROM count_equipements").df()
     print(df)
     print(get_commune_info(con, "37261"))

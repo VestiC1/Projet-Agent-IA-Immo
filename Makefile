@@ -12,3 +12,6 @@ agent:
 
 fastapi:
 	python -m scripts.run_api
+
+bpedb:
+	python -m scripts.data_bpe_insert

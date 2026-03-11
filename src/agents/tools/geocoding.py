@@ -19,5 +19,6 @@ async def geocoding(address: str) -> dict[str,float]:
     coords = data['features'][0]['geometry']['coordinates']
     address_returned = data['features'][0]['properties']['label']
     code_insee = data['features'][0]['properties']['citycode']
-    type_voie = data['features'][0]['properties']['street'].split()[0]
+    type_voie = data['features'][0]['properties'].get('street')
+    type_voie = type_voie.split()[0] if type_voie else None
     return {"adresse": address_returned, "code_insee": code_insee, "type_voie": type_voie, "longitude": coords[0], "latitude": coords[1]}

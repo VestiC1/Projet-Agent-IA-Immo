@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from src.inference.model import get_model, get_estimation
 from src.app.monitoring.prometheus_metrics import track_inference_time
+from src.agents import agent_immo
 import time
 
 from pydantic import BaseModel
@@ -71,4 +72,7 @@ async def chatbot(request: Request):
 
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
-    return JSONResponse(content={"message": request.messages[-1].content})
+    response = await agent_immo.ainvoke(
+        {"messages": [(m.role, m.content) for m in request.messages]}
+    )
+    return JSONResponse(content={"message": response.get('messages')[-1].content})
