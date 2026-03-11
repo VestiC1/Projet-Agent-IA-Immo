@@ -10,3 +10,7 @@ if not api_key_mistral:
 api_key_gemini = os.getenv("GEMINI_API_KEY")
 if not api_key_gemini:
     raise ValueError("Clé API Gemini manquante. Veuillez définir la variable d'environnement GEMINI_API_KEY.")
+
+api_key_langsmith = os.getenv("LANGSMITH_API_KEY")
+if not api_key_langsmith: 
+    raise ValueError("Clé API Langsmith manquante. Veuillez définir la variable d'environnement LANGSMITH_API_KEY.")
