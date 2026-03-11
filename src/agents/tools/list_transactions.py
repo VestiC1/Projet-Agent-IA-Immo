@@ -98,8 +98,9 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
 
 
 async def get_recent_transactions(
-    code_insee: str, type_bien: str = "11", top_n: int = 10
+    code_insee: str, type_bien: str, top_n: int = 10
 ) -> list[dict]:
+    type_bien = "11" if type_bien == "maison" else "12"
     all_features = await _fetch_all_pages(code_insee, type_bien)
     transactions = [f for f in (filter_transaction(f) for f in all_features) if f]
     return sorted(transactions, key=lambda t: t["date_mutation"], reverse=True)[:top_n]
