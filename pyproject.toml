@@ -24,6 +24,7 @@ dependencies = [
     "langchain-mistralai>=1.1.1",
     "aiohttp>=3.13.3",
     "python-dotenv>=1.2.2",
+    "shapely>=2.1.2",
 ]
 [dependency-groups]
 dev = [
