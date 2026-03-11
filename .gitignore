@@ -219,3 +219,6 @@ model/characterization/*.csv
 mlruns/
 data/clean/*
 temp*
+
+dvf_cache
+dvf_cache/*
