@@ -221,3 +221,4 @@ data/clean/*
 temp*
 
 dvf_cache
+dvf_cache/*
