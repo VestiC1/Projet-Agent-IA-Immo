@@ -55,3 +55,11 @@ async def predict(
     context['request'] = request
     
     return templates.TemplateResponse("prediction.html", context)
+
+@router.get("/chatbot", tags=["Chat"], response_class=HTMLResponse)
+async def chatbot(request: Request):
+    return templates.TemplateResponse("chatbot.html", {"request": request})
+
+@router.post("/chat", tags=["Chat"], response_class=JSONResponse)
+async def chatbot(request: Request):
+    return JSONResponse(content={"message":"test"})
