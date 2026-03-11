@@ -7,4 +7,4 @@ help: ## Affiche cette aide
 # Commande pour lancer l'agent
 # ============================================
 agent:
-	uv run python -m scripts.agent
+	python -m scripts.agent
