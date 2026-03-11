@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Bot - SinHabAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        base00: '#1d1f21',
+                        base01: '#282a2e',
+                        base02: '#373b41',
+                        base03: '#969896',
+                        base04: '#b4b7b4',
+                        base05: '#c5c8c6',
+                        base06: '#e0e0e0',
+                        base07: '#ffffff',
+                        base08: '#cc6666',
+                        base09: '#de935f',
+                        base0A: '#f0c674',
+                        base0B: '#b5bd68',
+                        base0C: '#8abeb7',
+                        base0D: '#81a2be',
+                        base0E: '#b294bb',
+                        base0F: '#a3685a',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Scrollbar styling */
+        #chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        #chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #chat-messages::-webkit-scrollbar-thumb {
+            background: #b4b7b4;
+            border-radius: 10px;
+        }
+        #chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #969896;
+        }
+
+        /* Typing indicator animation */
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #969896;
+            animation: typing-bounce 1.2s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+            30% { transform: translateY(-6px); opacity: 1; }
+        }
+
+        /* Message fade-in */
+        .message-enter {
+            animation: messageIn 0.25s ease-out;
+        }
+        @keyframes messageIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Textarea auto-resize */
+        #user-input {
+            resize: none;
+            overflow-y: hidden;
+            min-height: 44px;
+            max-height: 160px;
+        }
+
+        /* Prose for bot messages */
+        .bot-prose p { margin-bottom: 0.5em; }
+        .bot-prose p:last-child { margin-bottom: 0; }
+        .bot-prose ul { list-style: disc; padding-left: 1.2em; margin-bottom: 0.5em; }
+        .bot-prose li { margin-bottom: 0.2em; }
+        .bot-prose strong { font-weight: 600; }
+    </style>
+</head>
+<body class="bg-base07 min-h-screen flex flex-col">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-base00 shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-base07 text-xl font-bold mr-8">SinHabAI</span>
+                    <div class="flex space-x-8">
+                        <a href="/" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-base0D text-sm font-medium text-base05 hover:text-base07">
+                            Accueil
+                        </a>
+                        <a href="/chatbot" class="inline-flex items-center px-1 pt-1 border-b-2 border-base0D text-sm font-medium text-base07">
+                            Chat Bot
+                        </a>
+                        <a href="/docs" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-base0D text-sm font-medium text-base05 hover:text-base07">
+                            Documentation
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-3xl flex flex-col" style="height: calc(100vh - 64px - 80px);">
+
+        <div class="mb-6">
+            <h1 class="text-3xl font-bold text-base01 text-center">Assistant Immobilier</h1>
+            <p class="text-center text-base03 mt-2 text-sm">Posez vos questions sur l'immobilier, les estimations, le marché…</p>
+        </div>
+
+        <!-- Chat Card -->
+        <div class="bg-white rounded-lg shadow-lg border border-base06 flex flex-col flex-grow overflow-hidden">
+
+            <!-- Messages area -->
+            <div id="chat-messages" class="flex-grow overflow-y-auto p-6 space-y-4">
+
+                <!-- Welcome message -->
+                <div class="flex items-start gap-3 message-enter" id="welcome-message">
+                    <!-- Bot avatar -->
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base0D flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
+                        </svg>
+                    </div>
+                    <div class="flex flex-col max-w-[80%]">
+                        <span class="text-xs text-base03 mb-1 ml-1">SinHabAI</span>
+                        <div class="bg-base07 border border-base06 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-base01 bot-prose">
+                            <p>Bonjour ! 👋 Je suis votre assistant immobilier SinHabAI.</p>
+                            <p>Je peux vous aider à comprendre les estimations, répondre à vos questions sur le marché immobilier, ou vous guider dans votre projet.</p>
+                            <p>Comment puis-je vous aider ?</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Divider -->
+            <div class="border-t border-base06"></div>
+
+            <!-- Input area -->
+            <div class="p-4 bg-white rounded-b-lg">
+                <div class="flex items-end gap-3">
+                    <div class="flex-grow relative">
+                        <textarea
+                            id="user-input"
+                            placeholder="Posez votre question sur l'immobilier…"
+                            rows="1"
+                            class="w-full px-4 py-2.5 border border-base04 rounded-xl focus:outline-none focus:ring-2 focus:ring-base0D bg-base07 text-base01 text-sm leading-relaxed pr-3"
+                        ></textarea>
+                    </div>
+                    <button
+                        id="send-btn"
+                        title="Envoyer"
+                        class="flex-shrink-0 w-10 h-10 rounded-xl bg-base0D hover:bg-base0C text-white flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-base0D focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="text-xs text-base03 mt-2 text-center">
+                    Appuyez sur <kbd class="px-1 py-0.5 bg-base06 rounded text-xs">Entrée</kbd> pour envoyer,
+                    <kbd class="px-1 py-0.5 bg-base06 rounded text-xs">Maj+Entrée</kbd> pour un saut de ligne
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base00 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-base05">
+                <div class="mb-4 sm:mb-0">
+                    <p>&copy; 2025 SinHabAI. Tous droits réservés.</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="/cgu" class="hover:text-base07">Conditions Générales d'Utilisation</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // ── State ────────────────────────────────────────────────────────────────
+        // History resets on page reload (no localStorage)
+        const conversationHistory = [];
+
+        // ── DOM refs ─────────────────────────────────────────────────────────────
+        const messagesContainer = document.getElementById('chat-messages');
+        const userInput         = document.getElementById('user-input');
+        const sendBtn           = document.getElementById('send-btn');
+
+        // ── Auto-resize textarea ─────────────────────────────────────────────────
+        userInput.addEventListener('input', () => {
+            userInput.style.height = 'auto';
+            userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
+        });
+
+        // ── Keyboard: Enter sends, Shift+Enter is newline ────────────────────────
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+
+        sendBtn.addEventListener('click', handleSend);
+
+        // ── Helpers ──────────────────────────────────────────────────────────────
+        function scrollToBottom() {
+            messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+        }
+
+        function appendUserMessage(text) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-end justify-end gap-2 message-enter';
+            wrapper.innerHTML = `
+                <div class="flex flex-col items-end max-w-[80%]">
+                    <span class="text-xs text-base03 mb-1 mr-1">Vous</span>
+                    <div class="bg-base0D text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(text)}</div>
+                </div>
+            `;
+            messagesContainer.appendChild(wrapper);
+            scrollToBottom();
+        }
+
+        function appendBotMessage(html) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-start gap-3 message-enter';
+            wrapper.innerHTML = `
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base0D flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
+                    </svg>
+                </div>
+                <div class="flex flex-col max-w-[80%]">
+                    <span class="text-xs text-base03 mb-1 ml-1">SinHabAI</span>
+                    <div class="bg-base07 border border-base06 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-base01 bot-prose leading-relaxed">${html}</div>
+                </div>
+            `;
+            messagesContainer.appendChild(wrapper);
+            scrollToBottom();
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.createElement('div');
+            indicator.id = 'typing-indicator';
+            indicator.className = 'flex items-start gap-3 message-enter';
+            indicator.innerHTML = `
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base0D flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
+                    </svg>
+                </div>
+                <div class="flex flex-col max-w-[80%]">
+                    <span class="text-xs text-base03 mb-1 ml-1">SinHabAI</span>
+                    <div class="bg-base07 border border-base06 rounded-2xl rounded-tl-sm px-4 py-3">
+                        <div class="flex gap-1.5 items-center h-5">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(indicator);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('typing-indicator');
+            if (el) el.remove();
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // Very light markdown → HTML (bold, bullet lists, line breaks)
+        function renderMarkdown(text) {
+            return text
+                // Bold **text**
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                // Unordered list lines starting with - or *
+                .replace(/(?:^|\n)[*-] (.+)/g, (_, item) => `<li>${item.trim()}</li>`)
+                // Wrap consecutive <li> items in <ul>
+                .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+                // Paragraphs: double newline
+                .replace(/\n{2,}/g, '</p><p>')
+                // Single newline
+                .replace(/\n/g, '<br>')
+                // Wrap in paragraph if not already
+                .replace(/^(?!<[uo]l)/, '<p>')
+                .replace(/(?<![>])$/, '</p>');
+        }
+
+        // ── Main send logic ──────────────────────────────────────────────────────
+        async function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // Clear input & reset height
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendBtn.disabled = true;
+
+            // Display user message
+            appendUserMessage(text);
+
+            // Push user message to history (OpenAI format)
+            conversationHistory.push({ role: 'user', content: text });
+
+            // Show typing indicator
+            showTypingIndicator();
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        messages: conversationHistory
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                removeTypingIndicator();
+
+                // Tentative d'extraction de la réponse (format OpenAI standard)
+                let botText = null;
+
+                if (data.choices && data.choices[0]?.message?.content) {
+                    // Format OpenAI : { choices: [{ message: { content: '...' } }] }
+                    botText = data.choices[0].message.content;
+                } else if (data.message) {
+                    // Format alternatif : { message: '...' }
+                    botText = data.message;
+                } else if (data.response) {
+                    // Format alternatif : { response: '...' }
+                    botText = data.response;
+                } else if (data.answer) {
+                    // Format alternatif : { answer: '...' }
+                    botText = data.answer;
+                } else if (typeof data === 'string') {
+                    botText = data;
+                }
+
+                if (botText) {
+                    // Ajouter la réponse de l'assistant à l'historique
+                    conversationHistory.push({ role: 'assistant', content: botText });
+                    appendBotMessage(renderMarkdown(botText));
+                } else {
+                    console.warn('Format de réponse inattendu :', data);
+                    appendBotMessage(`<span class="text-base08">Réponse inattendue du serveur. Consultez la console pour les détails.</span>`);
+                }
+
+            } catch (err) {
+                removeTypingIndicator();
+                appendBotMessage(`<span class="text-base08">Impossible de contacter l'agent. Vérifiez que le serveur est bien démarré.</span>`);
+                console.error('Erreur /chat :', err);
+            } finally {
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+        }
+    </script>
+</body>
+</html>

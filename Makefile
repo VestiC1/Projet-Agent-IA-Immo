@@ -6,5 +6,9 @@ help: ## Affiche cette aide
 # ============================================
 # Commande pour lancer l'agent
 # ============================================
+
 agent:
 	python -m scripts.agent
+
+fastapi:
+	python -m scripts.run_api
