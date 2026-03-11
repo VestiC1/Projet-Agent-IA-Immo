@@ -33,3 +33,7 @@ API_CONFIG = {
     "port": 8222
 }
 
+# Model 
+MODEL_DIR = ROOT  / 'model'
+MODEL = MODEL_DIR / 'deploy' / 'best_model3.pkl'
+
