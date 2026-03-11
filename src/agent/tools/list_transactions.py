@@ -8,7 +8,7 @@ import diskcache
 from shapely.geometry import shape
 
 CACHE_DIR = os.getenv("DVF_CACHE_DIR", "./dvf_cache")
-CACHE_TTL = 60 * 60 * 12  # 12h
+CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 
 cache = diskcache.Cache(CACHE_DIR)
 SEM = asyncio.Semaphore(5)
