@@ -1,18 +1,15 @@
-from dotenv import load_dotenv
-import os
+
 from langchain.agents import create_agent
 from langchain_mistralai import ChatMistralAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 import aiohttp
 import asyncio
 
-load_dotenv()
-api_key_mistral = os.getenv("MISTRAL_API_KEY")
-
-llm_mistral = ChatMistralAI(model="mistral-small-latest", api_key=api_key_mistral, temperature=0)
+from config_agent import api_key_mistral, api_key_gemini
 
 @tool
-async def geocoding(address: str) -> list[float]:
+async def geocoding(address: str) -> dict[str,float]:
     """Obtenir les coordonnées géographiques pour une adresse donnée."""
     if not address or len(address) < 5:
         raise ValueError("Adresse invalide. Veuillez fournir une adresse complète.")
@@ -31,6 +28,8 @@ async def geocoding(address: str) -> list[float]:
     coords = data['features'][0]['geometry']['coordinates']
     return {"longitude": coords[0], "latitude": coords[1]}
 
+llm_mistral = ChatMistralAI(model="mistral-small-latest", api_key=api_key_mistral, temperature=0)
+llm_gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key_gemini, temperature=0)
 
 agent = create_agent(
     model=llm_mistral,
