@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Résultat de l'Estimation - SinHabAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        // Base16 Tomorrow Night theme
+                        base00: '#1d1f21',
+                        base01: '#282a2e',
+                        base02: '#373b41',
+                        base03: '#969896',
+                        base04: '#b4b7b4',
+                        base05: '#c5c8c6',
+                        base06: '#e0e0e0',
+                        base07: '#ffffff',
+                        base08: '#cc6666',
+                        base09: '#de935f',
+                        base0A: '#f0c674',
+                        base0B: '#b5bd68',
+                        base0C: '#8abeb7',
+                        base0D: '#81a2be',
+                        base0E: '#b294bb',
+                        base0F: '#a3685a',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-base07 min-h-screen flex flex-col">
+    
+    <!-- Navigation Bar -->
+    <nav class="bg-base00 shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-base07 text-xl font-bold mr-8">SinHabAI</span>
+                    <div class="flex space-x-8">
+                        <a href="/" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-base0D text-sm font-medium text-base05 hover:text-base07">
+                            Accueil
+                        </a>
+                        <a href="/docs" class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent hover:border-base0D text-sm font-medium text-base05 hover:text-base07">
+                            Documentation
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-4xl">
+        <div class="mb-6">
+            <a href="/" class="text-base0D hover:text-base0C text-sm font-medium">
+                ← Nouvelle estimation
+            </a>
+        </div>
+
+        <h1 class="text-3xl font-bold text-base01 mb-8 text-center">
+            Résultat de l'Estimation
+        </h1>
+
+        <!-- Main Result Card -->
+        <div class="bg-white rounded-lg shadow-lg p-8 mb-6 border border-lg">
+            <!-- Price Display -->
+            <div class="text-center mb-8 pb-8 border-b border-base06">
+                <p class="text-sm text-base03 uppercase tracking-wide mb-2">Valeur estimée</p>
+                <p class="text-5xl font-bold text-base0D mb-4">
+                    {{ "{:,.0f}".format(estimation.price).replace(',', ' ') }} €
+                </p>
+                <p class="text-base03 text-sm">
+                    Soit {{ "{:,.0f}".format(estimation.price_per_m2).replace(',', ' ') }} € / m²
+                </p>
+            </div>
+
+            <!-- Confidence Interval -->
+            <div class="bg-base07 rounded-lg p-6 mb-6">
+                <h3 class="text-lg font-semibold text-base01 mb-4">Intervalle de confiance</h3>
+                <div class="flex items-center justify-between">
+                    <div class="text-center flex-1">
+                        <p class="text-sm text-base03 mb-1">Minimum</p>
+                        <p class="text-2xl font-bold text-base02">
+                            {{ "{:,.0f}".format(estimation.confidence_interval.min).replace(',', ' ') }} €
+                        </p>
+                    </div>
+                    <div class="px-4">
+                        <svg class="w-6 h-6 text-base04" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                        </svg>
+                    </div>
+                    <div class="text-center flex-1">
+                        <p class="text-sm text-base03 mb-1">Maximum</p>
+                        <p class="text-2xl font-bold text-base02">
+                            {{ "{:,.0f}".format(estimation.confidence_interval.max).replace(',', ' ') }} €
+                        </p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t border-base06">
+                    <p class="text-sm text-base03 text-center">
+                        Fourchette : ± {{ "{:,.0f}".format((estimation.confidence_interval.max - estimation.confidence_interval.min) / 2).replace(',', ' ') }} €
+                    </p>
+                </div>
+            </div>
+
+            <!-- Property Details -->
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-lg font-semibold text-base01 mb-4">Détails du bien</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-base03">Type</span>
+                            <span class="font-medium text-base01">{{ input.type }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base03">Surface habitable</span>
+                            <span class="font-medium text-base01">{{ input.surface_habitable }} m²</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base03">Nombre de pièces</span>
+                            <span class="font-medium text-base01">{{ input.nombre_pieces }}</span>
+                        </div>
+                        {% if input.surface_terrain %}
+                        <div class="flex justify-between">
+                            <span class="text-base03">Surface terrain</span>
+                            <span class="font-medium text-base01">{{ input.surface_terrain }} m²</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold text-base01 mb-4">Localisation</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <span class="text-base03 block text-sm mb-1">Adresse</span>
+                            <span class="font-medium text-base01">{{ input.address }}</span>
+                        </div>
+                        {% if coordinates %}
+                        <div class="flex justify-between text-sm">
+                            <span class="text-base03">Coordonnées</span>
+                            <span class="font-mono text-base02">
+                                {{ "%.4f"|format(coordinates.latitude) }}, {{ "%.4f"|format(coordinates.longitude) }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if coordinates.commune %}
+                        <div class="flex justify-between text-sm">
+                            <span class="text-base03">Code commune</span>
+                            <span class="font-mono text-base02">{{ coordinates.commune }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metadata Card (Optional - for debugging or transparency) -->
+        {% if metadata %}
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 border border-lg">
+            <h3 class="text-lg font-semibold text-base01 mb-4">Informations techniques</h3>
+            <div class="grid md:grid-cols-3 gap-4 text-sm">
+                {% if metadata.address_score %}
+                <div>
+                    <span class="text-base03 block mb-1">Précision adresse</span>
+                    <div class="flex items-center">
+                        <div class="flex-1 bg-base07 rounded-full h-2 mr-2">
+                            <div class="bg-base0B h-2 rounded-full" style="width: {{ (metadata.address_score * 100)|int }}%"></div>
+                        </div>
+                        <span class="font-medium text-base01">{{ (metadata.address_score * 100)|int }}%</span>
+                    </div>
+                </div>
+                {% endif %}
+                {% if metadata.address_type %}
+                <div>
+                    <span class="text-base03 block mb-1">Type d'adresse</span>
+                    <span class="inline-block px-2 py-1 rounded text-xs font-medium
+                        {% if metadata.address_type == 'housenumber' %}bg-green-100 text-green-800
+                        {% elif metadata.address_type == 'street' %}bg-blue-100 text-blue-800
+                        {% else %}bg-amber-100 text-amber-800{% endif %}">
+                        {% if metadata.address_type == 'housenumber' %}Adresse complète
+                        {% elif metadata.address_type == 'street' %}Rue
+                        {% else %}{{ metadata.address_type }}{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if estimation.confidence_level %}
+                <div>
+                    <span class="text-base03 block mb-1">Niveau de confiance</span>
+                    <span class="inline-block px-2 py-1 rounded text-xs font-medium
+                        {% if estimation.confidence_level == 'high' %}bg-green-100 text-green-800
+                        {% elif estimation.confidence_level == 'medium' %}bg-amber-100 text-amber-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {% if estimation.confidence_level == 'high' %}Élevé
+                        {% elif estimation.confidence_level == 'medium' %}Moyen
+                        {% else %}Faible{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Disclaimer -->
+        <div class="bg-base0A bg-opacity-10 border border-base0A rounded-lg p-6 mb-6">
+            <h3 class="text-sm font-semibold text-base0F mb-2">⚠️ Avertissement</h3>
+            <p class="text-sm text-base03">
+                Cette estimation est basée sur un modèle statistique et des données de marché. 
+                Elle est fournie à titre indicatif et ne constitue pas une évaluation professionnelle. 
+                Pour une estimation précise, consultez un expert immobilier.
+            </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4">
+            <a href="/" 
+               class="flex-1 bg-base0D text-white text-center py-3 px-4 rounded-md hover:bg-base0C focus:outline-none focus:ring-2 focus:ring-base0D focus:ring-offset-2 transition-colors">
+                Nouvelle estimation
+            </a>
+            <button onclick="window.print()" 
+                    class="flex-1 bg-white border-2 border-base04 text-base01 py-3 px-4 rounded-md hover:bg-base07 focus:outline-none focus:ring-2 focus:ring-base04 focus:ring-offset-2 transition-colors">
+                Imprimer / PDF
+            </button>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-base00 mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-base05">
+                <div class="mb-4 sm:mb-0">
+                    <p>&copy; 2025 SinHabAI. Tous droits réservés.</p>
+                </div>
+                <div class="flex space-x-6">
+                    <a href="/cgu" class="hover:text-base07">
+                        Conditions Générales d'Utilisation
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <style>
+        @media print {
+            nav, footer, button {
+                display: none !important;
+            }
+        }
+    </style>
+</body>
+</html>

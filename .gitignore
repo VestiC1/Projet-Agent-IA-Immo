@@ -218,7 +218,6 @@ model/characterization/*.csv
 # Dossier mlruns
 mlruns/
 data/clean/*
-temp*
 
 dvf_cache
 dvf_cache/*
