@@ -18,9 +18,16 @@ bpedb:
 
 build:
 	docker build -t projet-immo-chatbot:latest .
+
 run:
 	docker rm -f immo-api || true
 	docker run --env-file .env -d -p 8000:8000 --name immo-api projet-immo-chatbot:latest
 
 stop:
 	docker stop immo-api
+
+test:
+	python -m pytest
+
+coverage-report:
+	coverage report -m
