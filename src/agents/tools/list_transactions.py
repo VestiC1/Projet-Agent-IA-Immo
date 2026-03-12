@@ -14,11 +14,7 @@ CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 cache = diskcache.Cache(CACHE_DIR)
 SEM = asyncio.Semaphore(5)
 timeout = aiohttp.ClientTimeout(total=3 * 60)
-connector = aiohttp.TCPConnector(
-    ttl_dns_cache=300,
-    limit=10,
-    ssl=ssl.create_default_context()
-)
+
 
 _session: aiohttp.ClientSession | None = None
 
@@ -26,6 +22,11 @@ _session: aiohttp.ClientSession | None = None
 async def get_session() -> aiohttp.ClientSession:
     global _session
     if _session is None or _session.closed:
+        connector = aiohttp.TCPConnector(
+            ttl_dns_cache=300,
+            limit=10,
+            ssl=ssl.create_default_context()
+        )
         _session = aiohttp.ClientSession(timeout=timeout, connector=connector)
     return _session
 
