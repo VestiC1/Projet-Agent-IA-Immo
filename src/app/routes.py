@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import onnxruntime as rt
@@ -11,6 +11,7 @@ from src.inference.model import get_model, get_estimation
 from src.app.monitoring.prometheus_metrics import track_inference_time
 from src.agents import agent_immo
 from langchain_core.runnables import RunnableConfig
+import json
 
 config = RunnableConfig(metadata={"timeout": 5*60}) # 5 minutes timeout
 import time
@@ -72,7 +73,7 @@ async def predict(
 @router.get("/chatbot", tags=["Chat"], response_class=HTMLResponse)
 async def chatbot(request: Request):
     return templates.TemplateResponse("chatbot.html", {"request": request})
-
+"""
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
     response = await agent_immo.ainvoke(
@@ -80,3 +81,20 @@ async def chatbot(request : ChatRequest):
         config =config
     )
     return JSONResponse(content={"message": response.get('messages')[-1].content})
+"""
+
+@router.post("/chat/stream")
+async def chatbot(request: ChatRequest):
+    async def generate():
+        async for event in agent_immo.astream_events(
+            {"messages": [(m.role, m.content) for m in request.messages]},
+            config=config,
+            version="v2",
+        ):
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if chunk.content:
+                    yield f"data: {json.dumps({'content': chunk.content})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")

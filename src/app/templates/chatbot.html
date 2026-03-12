@@ -81,9 +81,18 @@
         .bot-prose a { color: #81a2be; text-decoration: underline; }
         .bot-prose a:hover { color: #8abeb7; }
         .bot-prose hr { border: none; border-top: 1px solid #b4b7b4; margin: 0.8em 0; }
+
+        /* Dock fixe en bas : input + footer */
+        #bottom-dock {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 40;
+        }
     </style>
 </head>
-<body class="bg-base07 min-h-screen flex flex-col">
+<body class="bg-base07 min-h-screen">
 
     <!-- Navigation Bar -->
     <nav class="bg-base00 shadow-md sticky top-0 z-50">
@@ -107,18 +116,16 @@
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <main class="flex-grow container mx-auto px-4 py-8 max-w-3xl">
+    <!-- Main Content — scrolle naturellement -->
+    <main id="main-content" class="container mx-auto px-4 py-8 max-w-3xl">
 
         <div class="mb-6">
             <h1 class="text-3xl font-bold text-base01 text-center">Assistant Immobilier</h1>
             <p class="text-center text-base03 mt-2 text-sm">Posez vos questions sur l'immobilier, les estimations, le marché…</p>
         </div>
 
-        <!-- Chat Card -->
+        <!-- Chat Card — grandit avec le contenu -->
         <div class="bg-white rounded-lg shadow-lg border border-base06">
-
-            <!-- Messages area -->
             <div id="chat-messages" class="p-6 space-y-4">
 
                 <!-- Welcome message -->
@@ -140,12 +147,15 @@
                 </div>
 
             </div>
+        </div>
 
-            <!-- Divider -->
-            <div class="border-t border-base06"></div>
+    </main>
 
-            <!-- Input area -->
-            <div class="p-4 bg-white rounded-b-lg">
+    <!-- Dock fixe en bas : input bar + footer -->
+    <div id="bottom-dock">
+        <!-- Input bar -->
+        <div class="bg-white border-t border-base06 shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
+            <div class="max-w-3xl mx-auto px-4 py-3">
                 <div class="flex items-end gap-3">
                     <div class="flex-grow relative">
                         <textarea
@@ -173,21 +183,20 @@
             </div>
         </div>
 
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-base00 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-base05">
-                <div class="mb-4 sm:mb-0">
-                    <p>&copy; 2025 SinHabAI. Tous droits réservés.</p>
-                </div>
-                <div class="flex space-x-6">
-                    <a href="/cgu" class="hover:text-base07">Conditions Générales d'Utilisation</a>
+        <!-- Footer -->
+        <footer class="bg-base00">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-base05">
+                    <div class="mb-2 sm:mb-0">
+                        <p>&copy; 2025 SinHabAI. Tous droits réservés.</p>
+                    </div>
+                    <div class="flex space-x-6">
+                        <a href="/cgu" class="hover:text-base07">Conditions Générales d'Utilisation</a>
+                    </div>
                 </div>
             </div>
-        </div>
-    </footer>
+        </footer>
+    </div>
 
     <script>
         // ── Markdown config ──────────────────────────────────────────────────────
@@ -208,11 +217,22 @@
         const messagesContainer = document.getElementById('chat-messages');
         const userInput         = document.getElementById('user-input');
         const sendBtn           = document.getElementById('send-btn');
+        const mainContent       = document.getElementById('main-content');
+        const bottomDock        = document.getElementById('bottom-dock');
+
+        // ── Ajuster le padding-bottom du main pour ne pas cacher le contenu ──────
+        function adjustMainPadding() {
+            const dockHeight = bottomDock.offsetHeight;
+            mainContent.style.paddingBottom = (dockHeight + 16) + 'px';
+        }
+        adjustMainPadding();
+        window.addEventListener('resize', adjustMainPadding);
 
         // ── Auto-resize textarea ─────────────────────────────────────────────────
         userInput.addEventListener('input', () => {
             userInput.style.height = 'auto';
             userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
+            adjustMainPadding();
         });
 
         // ── Keyboard: Enter sends, Shift+Enter is newline ────────────────────────
@@ -251,6 +271,51 @@
             scrollToBottom();
         }
 
+        function createBotBubble() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-start gap-3 message-enter';
+            wrapper.innerHTML = `
+                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base0D flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3-3-3z"/>
+                    </svg>
+                </div>
+                <div class="flex flex-col max-w-[80%]">
+                    <span class="text-xs text-base03 mb-1 ml-1">SinHabAI</span>
+                    <div class="bg-base07 border border-base06 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-base01">
+                        <div id="bubble-thinking" class="flex items-center gap-2">
+                            <div class="flex gap-1.5 items-center">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                            <span class="text-xs text-base03 italic">Réflexion en cours…</span>
+                        </div>
+                        <div id="bubble-content" class="bot-prose leading-relaxed hidden"></div>
+                    </div>
+                </div>
+            `;
+            messagesContainer.appendChild(wrapper);
+            scrollToBottom();
+
+            return {
+                wrapper,
+                contentEl: wrapper.querySelector('#bubble-content'),
+                thinkingEl: wrapper.querySelector('#bubble-thinking'),
+            };
+        }
+
+        function switchToContent(bubble) {
+            bubble.thinkingEl.classList.add('hidden');
+            bubble.contentEl.classList.remove('hidden');
+        }
+
+        function updateThinkingStatus(bubble, text) {
+            const statusEl = bubble.thinkingEl.querySelector('span');
+            if (statusEl) statusEl.textContent = text;
+        }
+
         function appendBotMessage(html) {
             const wrapper = document.createElement('div');
             wrapper.className = 'flex items-start gap-3 message-enter';
@@ -284,10 +349,13 @@
                 <div class="flex flex-col max-w-[80%]">
                     <span class="text-xs text-base03 mb-1 ml-1">SinHabAI</span>
                     <div class="bg-base07 border border-base06 rounded-2xl rounded-tl-sm px-4 py-3">
-                        <div class="flex gap-1.5 items-center h-5">
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
-                            <div class="typing-dot"></div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex gap-1.5 items-center">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                            <span class="text-xs text-base03 italic">Réflexion en cours…</span>
                         </div>
                     </div>
                 </div>
@@ -301,13 +369,33 @@
             if (el) el.remove();
         }
 
-        // ── Main send logic ──────────────────────────────────────────────────────
+        // ── SSE line parser ──────────────────────────────────────────────────────
+        function parseSSELines(text) {
+            const events = [];
+            const lines = text.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const payload = line.slice(6).trim();
+                    if (payload && payload !== '[DONE]') {
+                        try {
+                            events.push(JSON.parse(payload));
+                        } catch (e) {
+                            // Ignore malformed JSON
+                        }
+                    }
+                }
+            }
+            return events;
+        }
+
+        // ── Main send logic (streaming) ──────────────────────────────────────────
         async function handleSend() {
             const text = userInput.value.trim();
             if (!text) return;
 
             userInput.value = '';
             userInput.style.height = 'auto';
+            adjustMainPadding();
             sendBtn.disabled = true;
 
             appendUserMessage(text);
@@ -315,7 +403,7 @@
             showTypingIndicator();
 
             try {
-                const response = await fetch('/chat', {
+                const response = await fetch('/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -327,29 +415,94 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
 
-                const data = await response.json();
-                removeTypingIndicator();
+                const contentType = response.headers.get('content-type') || '';
 
-                let botText = null;
+                // ── Streaming (SSE) ──────────────────────────────────────────
+                if (contentType.includes('text/event-stream')) {
+                    removeTypingIndicator();
 
-                if (data.choices && data.choices[0]?.message?.content) {
-                    botText = data.choices[0].message.content;
-                } else if (data.message) {
-                    botText = data.message;
-                } else if (data.response) {
-                    botText = data.response;
-                } else if (data.answer) {
-                    botText = data.answer;
-                } else if (typeof data === 'string') {
-                    botText = data;
-                }
+                    const bubble = createBotBubble();
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let botText = '';
+                    let buffer = '';
+                    let hasStartedText = false;
 
-                if (botText) {
-                    conversationHistory.push({ role: 'assistant', content: botText });
-                    appendBotMessage(renderMarkdown(botText));
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+
+                        const lastNewline = buffer.lastIndexOf('\n');
+                        if (lastNewline === -1) continue;
+
+                        const complete = buffer.slice(0, lastNewline + 1);
+                        buffer = buffer.slice(lastNewline + 1);
+
+                        const events = parseSSELines(complete);
+                        for (const evt of events) {
+                            if (evt.content) {
+                                if (!hasStartedText) {
+                                    switchToContent(bubble);
+                                    hasStartedText = true;
+                                }
+                                botText += evt.content;
+                                bubble.contentEl.innerHTML = renderMarkdown(botText);
+                                scrollToBottom();
+                            }
+                            if (evt.tool) {
+                                updateThinkingStatus(bubble, `🔧 ${evt.tool}…`);
+                                scrollToBottom();
+                            }
+                        }
+                    }
+
+                    // Traiter le reste du buffer
+                    if (buffer.trim()) {
+                        const events = parseSSELines(buffer);
+                        for (const evt of events) {
+                            if (evt.content) {
+                                botText += evt.content;
+                            }
+                        }
+                    }
+
+                    // Rendu final
+                    if (botText) {
+                        switchToContent(bubble);
+                        bubble.contentEl.innerHTML = renderMarkdown(botText);
+                        bubble.contentEl.removeAttribute('id');
+                        bubble.thinkingEl.remove();
+                        conversationHistory.push({ role: 'assistant', content: botText });
+                    }
+
+                // ── Non-streaming (JSON classique) ───────────────────────────
                 } else {
-                    console.warn('Format de réponse inattendu :', data);
-                    appendBotMessage(`<span class="text-base08">Réponse inattendue du serveur. Consultez la console pour les détails.</span>`);
+                    const data = await response.json();
+                    removeTypingIndicator();
+
+                    let botText = null;
+
+                    if (data.choices && data.choices[0]?.message?.content) {
+                        botText = data.choices[0].message.content;
+                    } else if (data.message) {
+                        botText = data.message;
+                    } else if (data.response) {
+                        botText = data.response;
+                    } else if (data.answer) {
+                        botText = data.answer;
+                    } else if (typeof data === 'string') {
+                        botText = data;
+                    }
+
+                    if (botText) {
+                        conversationHistory.push({ role: 'assistant', content: botText });
+                        appendBotMessage(renderMarkdown(botText));
+                    } else {
+                        console.warn('Format de réponse inattendu :', data);
+                        appendBotMessage(`<span class="text-base08">Réponse inattendue du serveur. Consultez la console pour les détails.</span>`);
+                    }
                 }
 
             } catch (err) {
