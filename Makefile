@@ -27,7 +27,7 @@ stop:
 	docker stop immo-api
 
 test:
-	python -m pytest
+	coverage run -m pytest
 
 coverage-report:
 	coverage report -m
