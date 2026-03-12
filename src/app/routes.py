@@ -80,7 +80,7 @@ async def predict(
 @router.get("/chatbot", tags=["Chat"], response_class=HTMLResponse)
 async def chatbot(request: Request):
     return templates.TemplateResponse("chatbot.html", {"request": request})
-"""
+
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
     response = await agent_immo.ainvoke(
@@ -88,7 +88,7 @@ async def chatbot(request : ChatRequest):
         config =config
     )
     return JSONResponse(content={"message": response.get('messages')[-1].content})
-"""
+
 
 @router.post("/chat/stream")
 async def chatbot(request: ChatRequest):
