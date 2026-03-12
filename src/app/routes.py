@@ -7,7 +7,7 @@ from config import DEPLOYED_MODEL_PATH, MODEL
 from src.utils.geo import validate_and_geocode_address
 import numpy as np
 import pandas as pd
-from src.inference.model import get_model, get_estimation
+from src.inference.model import get_model, get_estimation, AddressNotFoundError
 from src.app.monitoring.prometheus_metrics import track_inference_time
 from src.agents import agent_immo
 from langchain_core.runnables import RunnableConfig
@@ -56,15 +56,22 @@ async def predict(
     address_type: Optional[str] = Form(None),
     ):
     print(type_local, address, surface_habitable, nombre_pieces, surface_terrain, latitude, longitude, address_type)
- 
-    context = get_estimation(
-        pipeline,
-        address,
-        type_local,
-        surface_habitable,
-        surface_terrain,
-        nombre_pieces
-    )
+    
+    try:
+        context = get_estimation(
+            pipeline,
+            address,
+            type_local,
+            surface_habitable,
+            surface_terrain,
+            nombre_pieces
+        )
+    except AddressNotFoundError as e:
+        context = {
+            "request": request,
+            "error": str(e)
+        }
+        return templates.TemplateResponse("error.html", context, status_code=500)
 
     context['request'] = request
     
@@ -73,7 +80,7 @@ async def predict(
 @router.get("/chatbot", tags=["Chat"], response_class=HTMLResponse)
 async def chatbot(request: Request):
     return templates.TemplateResponse("chatbot.html", {"request": request})
-"""
+
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
     response = await agent_immo.ainvoke(
@@ -81,7 +88,7 @@ async def chatbot(request : ChatRequest):
         config =config
     )
     return JSONResponse(content={"message": response.get('messages')[-1].content})
-"""
+
 
 @router.post("/chat/stream")
 async def chatbot(request: ChatRequest):
