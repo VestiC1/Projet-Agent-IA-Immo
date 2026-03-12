@@ -13,7 +13,7 @@ CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 
 cache = diskcache.Cache(CACHE_DIR)
 SEM = asyncio.Semaphore(5)
-timeout = aiohttp.ClientTimeout(total=3 * 60)
+timeout = aiohttp.ClientTimeout(total= 60)
 
 
 _session: aiohttp.ClientSession | None = None
@@ -86,7 +86,7 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
     if cached is not None:
         return cached
 
-    page_size = 500
+    page_size = 100
     params = {
         "code_insee": code_insee,
         "codtypbien": type_bien,
@@ -97,7 +97,7 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
     }
 
     session = await get_session()
-    async with asyncio.timeout(5 * 60):
+    async with asyncio.timeout(3*60):
         async with session.get(
             url, headers={"Accept": "application/json"}, params={**params, "page": 1}
         ) as response:
