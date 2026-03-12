@@ -86,7 +86,7 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
     if cached is not None:
         return cached
 
-    page_size = 100
+    page_size = 500
     params = {
         "code_insee": code_insee,
         "codtypbien": type_bien,
