@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Bot - SinHabAI</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -32,62 +34,53 @@
         }
     </script>
     <style>
-        /* Scrollbar styling */
-        #chat-messages::-webkit-scrollbar {
-            width: 6px;
-        }
-        #chat-messages::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        #chat-messages::-webkit-scrollbar-thumb {
-            background: #b4b7b4;
-            border-radius: 10px;
-        }
-        #chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #969896;
-        }
+        #chat-messages::-webkit-scrollbar { width: 6px; }
+        #chat-messages::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #b4b7b4; border-radius: 10px; }
+        #chat-messages::-webkit-scrollbar-thumb:hover { background: #969896; }
 
-        /* Typing indicator animation */
         .typing-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
+            width: 8px; height: 8px; border-radius: 50%;
             background-color: #969896;
             animation: typing-bounce 1.2s infinite ease-in-out;
         }
         .typing-dot:nth-child(1) { animation-delay: 0s; }
         .typing-dot:nth-child(2) { animation-delay: 0.2s; }
         .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
         @keyframes typing-bounce {
             0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
             30% { transform: translateY(-6px); opacity: 1; }
         }
 
-        /* Message fade-in */
-        .message-enter {
-            animation: messageIn 0.25s ease-out;
-        }
+        .message-enter { animation: messageIn 0.25s ease-out; }
         @keyframes messageIn {
             from { opacity: 0; transform: translateY(8px); }
             to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* Textarea auto-resize */
-        #user-input {
-            resize: none;
-            overflow-y: hidden;
-            min-height: 44px;
-            max-height: 160px;
-        }
+        #user-input { resize: none; overflow-y: hidden; min-height: 44px; max-height: 160px; }
 
-        /* Prose for bot messages */
         .bot-prose p { margin-bottom: 0.5em; }
         .bot-prose p:last-child { margin-bottom: 0; }
         .bot-prose ul { list-style: disc; padding-left: 1.2em; margin-bottom: 0.5em; }
+        .bot-prose ol { list-style: decimal; padding-left: 1.2em; margin-bottom: 0.5em; }
         .bot-prose li { margin-bottom: 0.2em; }
         .bot-prose strong { font-weight: 600; }
+        .bot-prose em { font-style: italic; }
+        .bot-prose table { border-collapse: collapse; margin: 0.5em 0; width: 100%; }
+        .bot-prose th, .bot-prose td { border: 1px solid #b4b7b4; padding: 0.3em 0.6em; text-align: left; font-size: 0.85em; }
+        .bot-prose th { background: #e0e0e0; font-weight: 600; }
+        .bot-prose code { background: #e0e0e0; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.85em; }
+        .bot-prose pre { background: #282a2e; color: #c5c8c6; padding: 0.8em; border-radius: 8px; overflow-x: auto; margin: 0.5em 0; }
+        .bot-prose pre code { background: none; padding: 0; color: inherit; }
+        .bot-prose blockquote { border-left: 3px solid #81a2be; padding-left: 0.8em; color: #969896; margin: 0.5em 0; }
+        .bot-prose h1, .bot-prose h2, .bot-prose h3 { font-weight: 600; margin: 0.5em 0 0.3em; }
+        .bot-prose h1 { font-size: 1.2em; }
+        .bot-prose h2 { font-size: 1.1em; }
+        .bot-prose h3 { font-size: 1em; }
+        .bot-prose a { color: #81a2be; text-decoration: underline; }
+        .bot-prose a:hover { color: #8abeb7; }
+        .bot-prose hr { border: none; border-top: 1px solid #b4b7b4; margin: 0.8em 0; }
     </style>
 </head>
 <body class="bg-base07 min-h-screen flex flex-col">
@@ -115,7 +108,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="flex-grow container mx-auto px-4 py-8 max-w-3xl flex flex-col" style="height: calc(100vh - 64px - 80px);">
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-3xl">
 
         <div class="mb-6">
             <h1 class="text-3xl font-bold text-base01 text-center">Assistant Immobilier</h1>
@@ -123,14 +116,13 @@
         </div>
 
         <!-- Chat Card -->
-        <div class="bg-white rounded-lg shadow-lg border border-base06 flex flex-col flex-grow overflow-hidden">
+        <div class="bg-white rounded-lg shadow-lg border border-base06">
 
             <!-- Messages area -->
-            <div id="chat-messages" class="flex-grow overflow-y-auto p-6 space-y-4">
+            <div id="chat-messages" class="p-6 space-y-4">
 
                 <!-- Welcome message -->
                 <div class="flex items-start gap-3 message-enter" id="welcome-message">
-                    <!-- Bot avatar -->
                     <div class="flex-shrink-0 w-8 h-8 rounded-full bg-base0D flex items-center justify-center">
                         <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -198,8 +190,18 @@
     </footer>
 
     <script>
+        // ── Markdown config ──────────────────────────────────────────────────────
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+        });
+
+        function renderMarkdown(text) {
+            const html = marked.parse(text);
+            return DOMPurify.sanitize(html);
+        }
+
         // ── State ────────────────────────────────────────────────────────────────
-        // History resets on page reload (no localStorage)
         const conversationHistory = [];
 
         // ── DOM refs ─────────────────────────────────────────────────────────────
@@ -225,7 +227,15 @@
 
         // ── Helpers ──────────────────────────────────────────────────────────────
         function scrollToBottom() {
-            messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' });
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
         }
 
         function appendUserMessage(text) {
@@ -291,49 +301,17 @@
             if (el) el.remove();
         }
 
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
-        }
-
-        // Very light markdown → HTML (bold, bullet lists, line breaks)
-        function renderMarkdown(text) {
-            return text
-                // Bold **text**
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                // Unordered list lines starting with - or *
-                .replace(/(?:^|\n)[*-] (.+)/g, (_, item) => `<li>${item.trim()}</li>`)
-                // Wrap consecutive <li> items in <ul>
-                .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
-                // Paragraphs: double newline
-                .replace(/\n{2,}/g, '</p><p>')
-                // Single newline
-                .replace(/\n/g, '<br>')
-                // Wrap in paragraph if not already
-                .replace(/^(?!<[uo]l)/, '<p>')
-                .replace(/(?<![>])$/, '</p>');
-        }
-
         // ── Main send logic ──────────────────────────────────────────────────────
         async function handleSend() {
             const text = userInput.value.trim();
             if (!text) return;
 
-            // Clear input & reset height
             userInput.value = '';
             userInput.style.height = 'auto';
             sendBtn.disabled = true;
 
-            // Display user message
             appendUserMessage(text);
-
-            // Push user message to history (OpenAI format)
             conversationHistory.push({ role: 'user', content: text });
-
-            // Show typing indicator
             showTypingIndicator();
 
             try {
@@ -350,30 +328,23 @@
                 }
 
                 const data = await response.json();
-
                 removeTypingIndicator();
 
-                // Tentative d'extraction de la réponse (format OpenAI standard)
                 let botText = null;
 
                 if (data.choices && data.choices[0]?.message?.content) {
-                    // Format OpenAI : { choices: [{ message: { content: '...' } }] }
                     botText = data.choices[0].message.content;
                 } else if (data.message) {
-                    // Format alternatif : { message: '...' }
                     botText = data.message;
                 } else if (data.response) {
-                    // Format alternatif : { response: '...' }
                     botText = data.response;
                 } else if (data.answer) {
-                    // Format alternatif : { answer: '...' }
                     botText = data.answer;
                 } else if (typeof data === 'string') {
                     botText = data;
                 }
 
                 if (botText) {
-                    // Ajouter la réponse de l'assistant à l'historique
                     conversationHistory.push({ role: 'assistant', content: botText });
                     appendBotMessage(renderMarkdown(botText));
                 } else {
