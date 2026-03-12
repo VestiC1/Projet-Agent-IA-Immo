@@ -2,6 +2,8 @@ from langchain.agents import create_agent
 from langchain_mistralai import ChatMistralAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
+from dataclasses import dataclass
 from config import BPE_INSEE_DB
 from src.agents.tools.geocoding import geocoding
 from src.agents.tools.commune_info import get_commune_info
@@ -110,9 +112,21 @@ async def estimation_tools(
 llm_mistral = ChatMistralAI(model="mistral-small-latest", api_key=api_key_mistral, temperature=0)
 llm_gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key_gemini, temperature=0)
 
+@dataclass
+class Context:
+    """Custom runtime context schema."""
+    user_id: str
+
+# On définit un checkpointer pour stocker l'état de l'agent entre les appels, ici en mémoire (InMemorySaver), 
+# mais on peut aussi utiliser une base de données ou un système de fichiers.
+checkpointer = InMemorySaver()
+
 agent = create_agent(
     model=llm_mistral,
     tools=[geocoding_tools, commune_info_tools, recent_transactions_tools, estimation_tools],
+    context_schema=Context,
+    checkpointer=checkpointer,
+    
     system_prompt="""
         Vous êtes un agent immobilier virtuel. Répondez toujours en français.
 
