@@ -1,0 +1,134 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyc
+.pytest_cache/
+.coverage
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+*.cover
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+*.egg
+
+# Virtual environments (CRITICAL - don't copy .venv!)
+.venv/
+venv/
+env/
+ENV/
+.pixi/
+
+# IDE and editors
+.vscode/
+.idea/
+.spyderproject/
+.spyproject/
+.ropeproject/
+*.swp
+*.swo
+.cursorignore
+.cursorindexingignore
+
+# Jupyter notebooks (not needed in production)
+*.ipynb
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# Git (don't copy git history to Docker)
+.git/
+.gitignore
+.gitattributes
+
+# Docker files (don't copy Docker files into Docker image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+README*
+docs/
+/site
+
+# Tests (not needed in production)
+tests/
+test_*.py
+*_test.py
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+
+# Environment files
+.env
+.env.*
+.envrc
+
+# Logs
+*.log
+logs/
+
+# DVC (data version control - not needed in production)
+.dvc/
+*.dvc
+
+# MLflow runs (huge - load from remote instead)
+mlruns/
+
+# Data files (CRITICAL - these are huge!)
+
+!data/bpe_insee.duckdb
+data/*.zip
+data/clean/*.csv
+datasets/
+*.csv
+*.parquet
+*.tsv
+*.xlsx
+
+# Model files - BE SELECTIVE!
+# Ignore training artifacts but KEEP your production model
+model/characterization/*.csv
+# If your trained model is model/my_model.pkl, allow it:
+# model/*
+!model/deploy/*.pkl
+# OR specify exactly which models to include in your Dockerfile COPY
+
+# Cache directories
+.cache/
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+.pytype/
+
+# OS files
+.DS_Store
+Thumbs.db
+*_files/
+
+# Marimo
+marimo/_static/
+marimo/_lsp/
+__marimo__/
+
+# Abstra
+.abstra/
+
+# Misc
+*.bak
+*.tmp
+*.temp
+.pypirc
+
+dvf_cache/

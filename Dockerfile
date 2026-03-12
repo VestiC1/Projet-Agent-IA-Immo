@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Install uv and curl (required for healthcheck)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -9,11 +9,19 @@ WORKDIR /app
 # Copy dependency files first
 COPY pyproject.toml uv.lock ./
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies directly to system Python (faster and simpler)
 RUN uv pip install --system --no-cache .
 
 # Copy application code
 COPY config.py ./
+COPY config_agent.py ./
+COPY data/bpe_insee.duckdb ./data/bpe_insee.duckdb
 COPY src/ ./src/
 
 # Copy model files

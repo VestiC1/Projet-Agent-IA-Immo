@@ -10,6 +10,9 @@ import pandas as pd
 from src.inference.model import get_model, get_estimation
 from src.app.monitoring.prometheus_metrics import track_inference_time
 from src.agents import agent_immo
+from langchain_core.runnables import RunnableConfig
+
+config = RunnableConfig(metadata={"timeout": 5*60}) # 5 minutes timeout
 import time
 
 from pydantic import BaseModel
@@ -73,6 +76,7 @@ async def chatbot(request: Request):
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
     response = await agent_immo.ainvoke(
-        {"messages": [(m.role, m.content) for m in request.messages]}
+        {"messages": [(m.role, m.content) for m in request.messages]},
+        config =config
     )
     return JSONResponse(content={"message": response.get('messages')[-1].content})
