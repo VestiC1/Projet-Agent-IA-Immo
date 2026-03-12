@@ -1,5 +1,7 @@
 import aiohttp
 
+timeout = aiohttp.ClientTimeout(total=30)
+
 async def geocoding(address: str) -> dict[str,float]:
     """Obtenir les coordonnées géographiques pour une adresse donnée."""
     if not address or len(address) < 5:
@@ -9,7 +11,7 @@ async def geocoding(address: str) -> dict[str,float]:
     params = {"q": address, "limit": 1}
 
     try:
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url, params=params) as response:
                 response.raise_for_status()
                 data = await response.json()
