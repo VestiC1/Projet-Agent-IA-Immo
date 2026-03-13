@@ -49,6 +49,7 @@ graph TD
 - Python 3.12+
 - uv
 - make
+- construire un .env en suivant le .env.exemple
 
 ### Étapes
 
