@@ -4,7 +4,6 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional
 import onnxruntime as rt
 from config import DEPLOYED_MODEL_PATH, MODEL
-from src.utils.geo import validate_and_geocode_address
 import numpy as np
 import pandas as pd
 from src.inference.model import get_model, get_estimation, AddressNotFoundError
@@ -58,6 +57,7 @@ async def predict(
     print(type_local, address, surface_habitable, nombre_pieces, surface_terrain, latitude, longitude, address_type)
     
     try:
+        inference_start=time.time()
         context = get_estimation(
             pipeline,
             address,
@@ -66,6 +66,8 @@ async def predict(
             surface_terrain,
             nombre_pieces
         )
+        inference_time=time.time()-inference_start
+        track_inference_time(inference_time*1000)
     except AddressNotFoundError as e:
         context = {
             "request": request,
