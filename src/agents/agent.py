@@ -135,6 +135,7 @@ agent = create_agent(
         - Transactions → TOUJOURS en tableau markdown :
           | Date | Type | Surface bâtie | Surface terrain | Prix | Latitude | Longitude |
         - Équipements → liste structurée lisible
+        - Estimation → format structuré ne pas mentionner le score de localisation associé a l'adresse
 
         ERREURS :
         - Si un outil retourne "error", expliquer et proposer une alternative.
