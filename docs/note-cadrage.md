@@ -66,16 +66,17 @@ Le modèle de prédiction couvre les **maisons et les appartements** (type_local
 ```mermaid
 flowchart TD
     U([Utilisateur]) -->|message| F[Frontend Jinja]
-    F -->|requête HTTP| A[Agent LangChain\nMistral Small]
+    F <-->|historique de session| M[(Historique\nconversation)]
+    F -->|requête HTTP + contexte| A[Agent LangChain\nMistral Small]
 
     A -->|tool call| T1[estimate_price]
     A -->|tool call| T2[search_transactions]
     A -->|tool call| T3[get_commune_info]
     A -->|tool call| T4[geocode_address]
-    A <-->|mémoire de session| M[(Historique\nconversation)]
 
     T1 -->|HTTP POST| API[FastAPI\nModèle ML]
-    T2 -->|HTTP GET| CEREMA[API DVF+ Cerema\napidf-preprod.cerema.fr]
+    T2 -->|lecture/écriture| CACHE[(Cache disque\ndiskcache · TTL 30j)]
+    CACHE -->|HTTP GET si miss| CEREMA[API DVF+ Cerema\napidf-preprod.cerema.fr]
     T3 -->|HTTP GET| GEO[geo.api.gouv.fr]
     T3 -->|SQL| DB[(DuckDB\nBPE dénombrement)]
     T4 -->|HTTP GET| ADDR[api-adresse.data.gouv.fr]

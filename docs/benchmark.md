@@ -40,7 +40,7 @@ La conclusion pratique formulée par RisingWave Engineering : *"use traditional 
 
 ## 4. Sources de données retenues
 
-Trois sources alimentent l'agent, toutes ingérées en PostgreSQL et jointes sur le **code INSEE commune**.
+Trois sources alimentent l'agent, jointes sur le **code INSEE commune**. L'approche est API-first : seule la BPE nécessite un stockage local (DuckDB), faute d'API REST disponible.
 
 ### 4.1 Transactions immobilières — API DVF+ Cerema
 
