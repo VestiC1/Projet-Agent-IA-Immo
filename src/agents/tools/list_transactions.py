@@ -1,6 +1,7 @@
 import asyncio
 import math
 import os
+import ssl
 from datetime import datetime
 
 import aiohttp
@@ -12,6 +13,29 @@ CACHE_TTL = 60 * 60 * 24 * 30  # 30 days
 
 cache = diskcache.Cache(CACHE_DIR)
 SEM = asyncio.Semaphore(5)
+timeout = aiohttp.ClientTimeout(total= 60)
+
+
+_session: aiohttp.ClientSession | None = None
+
+
+async def get_session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        connector = aiohttp.TCPConnector(
+            ttl_dns_cache=300,
+            limit=10,
+            ssl=ssl.create_default_context()
+        )
+        _session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+    return _session
+
+
+async def close_session():
+    global _session
+    if _session and not _session.closed:
+        await _session.close()
+        _session = None
 
 
 def extract_centroid(geometry: dict) -> tuple[float, float] | None:
@@ -41,9 +65,8 @@ def filter_transaction(feature: dict) -> dict | None:
     }
 
 
-async def _fetch_page(
-    session: aiohttp.ClientSession, url: str, params: dict, page: int
-) -> list:
+async def _fetch_page(url: str, params: dict, page: int) -> list:
+    session = await get_session()
     async with SEM:
         page_params = {**params, "page": page}
         async with session.get(
@@ -63,17 +86,18 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
     if cached is not None:
         return cached
 
-    page_size = 500
+    page_size = 100
     params = {
         "code_insee": code_insee,
         "codtypbien": type_bien,
         "idnatmut": 1,
-        "anneemut_min": current_year - 3,
+        "anneemut_min": current_year - 2,
         "anneemut_max": current_year,
         "page_size": page_size,
     }
 
-    async with aiohttp.ClientSession() as session:
+    session = await get_session()
+    async with asyncio.timeout(3*60):
         async with session.get(
             url, headers={"Accept": "application/json"}, params={**params, "page": 1}
         ) as response:
@@ -81,12 +105,12 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
             first = await response.json()
 
         total_pages = math.ceil(first["count"] / page_size)
-        print(first["count"] , total_pages)
+        print(first["count"], total_pages)
         all_features = first["features"]
 
         if total_pages > 1:
             tasks = [
-                _fetch_page(session, url, params, page)
+                _fetch_page(url, params, page)
                 for page in range(2, total_pages + 1)
             ]
             results = await asyncio.gather(*tasks)
@@ -98,21 +122,26 @@ async def _fetch_all_pages(code_insee: str, type_bien: str) -> list[dict]:
 
 
 async def get_recent_transactions(
-    code_insee: str, type_bien: str = "11", top_n: int = 10
+    code_insee: str, type_bien: str, top_n: int = 10
 ) -> list[dict]:
+    type_bien = "11" if type_bien == "maison" else "12"
     all_features = await _fetch_all_pages(code_insee, type_bien)
     transactions = [f for f in (filter_transaction(f) for f in all_features) if f]
     return sorted(transactions, key=lambda t: t["date_mutation"], reverse=True)[:top_n]
 
+
 async def main():
-    results = await get_recent_transactions(
-        code_insee='37261',
-        type_bien="12",
-        top_n = 10,   
-    )
+    try:
+        results = await get_recent_transactions(
+            code_insee="37261",
+            type_bien="12",
+            top_n=10,
+        )
+        print(len(results))
+    finally:
+        await close_session()
 
-    print(len(results))
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cache.clear()
     asyncio.run(main())

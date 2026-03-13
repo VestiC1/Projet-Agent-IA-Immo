@@ -1,14 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import onnxruntime as rt
 from config import DEPLOYED_MODEL_PATH, MODEL
-from src.utils.geo import validate_and_geocode_address
 import numpy as np
 import pandas as pd
-from src.inference.model import get_model, get_estimation
+from src.inference.model import get_model, get_estimation, AddressNotFoundError
 from src.app.monitoring.prometheus_metrics import track_inference_time
+from src.agents import agent_immo
+from langchain_core.runnables import RunnableConfig
+import json
+
+config = RunnableConfig(metadata={"timeout": 5*60}) # 5 minutes timeout
 import time
 
 from pydantic import BaseModel
@@ -51,15 +55,25 @@ async def predict(
     address_type: Optional[str] = Form(None),
     ):
     print(type_local, address, surface_habitable, nombre_pieces, surface_terrain, latitude, longitude, address_type)
- 
-    context = get_estimation(
-        pipeline,
-        address,
-        type_local,
-        surface_habitable,
-        surface_terrain,
-        nombre_pieces
-    )
+    
+    try:
+        inference_start=time.time()
+        context = get_estimation(
+            pipeline,
+            address,
+            type_local,
+            surface_habitable,
+            surface_terrain,
+            nombre_pieces
+        )
+        inference_time=time.time()-inference_start
+        track_inference_time(inference_time*1000)
+    except AddressNotFoundError as e:
+        context = {
+            "request": request,
+            "error": str(e)
+        }
+        return templates.TemplateResponse("error.html", context, status_code=500)
 
     context['request'] = request
     
@@ -71,4 +85,25 @@ async def chatbot(request: Request):
 
 @router.post("/chat", tags=["Chat"], response_class=JSONResponse)
 async def chatbot(request : ChatRequest):
-    return JSONResponse(content={"message": request.messages[-1].content})
+    response = await agent_immo.ainvoke(
+        {"messages": [(m.role, m.content) for m in request.messages]},
+        config =config
+    )
+    return JSONResponse(content={"message": response.get('messages')[-1].content})
+
+
+@router.post("/chat/stream")
+async def chatbot(request: ChatRequest):
+    async def generate():
+        async for event in agent_immo.astream_events(
+            {"messages": [(m.role, m.content) for m in request.messages]},
+            config=config,
+            version="v2",
+        ):
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"]
+                if chunk.content:
+                    yield f"data: {json.dumps({'content': chunk.content})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
