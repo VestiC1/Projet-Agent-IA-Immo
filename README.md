@@ -39,6 +39,7 @@ graph TD
 - **Docker** : Conteneurisation
 - **MLflow** : Gestion du cycle de vie des modèles
 - **LangChain** : Framework pour agents IA
+- **LangSmith** : Monitoring d'agents IA
 - **Mistral AI / Gemini** : Modèles de langage pour le chatbot
 
 ## Installation
@@ -48,6 +49,7 @@ graph TD
 - Python 3.12+
 - uv
 - make
+- construire un .env en suivant le .env.exemple
 
 ### Étapes
 
@@ -189,6 +191,7 @@ L'agent utilise plusieurs outils spécialisés :
 3. **Transactions** : Liste des transactions récentes
 4. **Estimation** : Prédiction de prix
 
+Le monitoring se fait avec **LangSmith** via l'interface web suivante : https://eu.smith.langchain.com 
 ## Configuration
 
 Le projet utilise plusieurs fichiers de configuration :
