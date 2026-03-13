@@ -1,0 +1,41 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main, staging ]
+
+jobs:
+  test:
+    name: Run Python Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Run tests
+      shell: bash
+      run: |
+        source .venv/bin/activate  # Active l'environnement virtuel (si uv en crée un)
+        PYTHONPATH=src python -m pytest tests/ -v -W ignore::DeprecationWarning
+      env:
+        MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY}}
+        LANGSMITH_TRACING: ${{ secrets.LANGSMITH_TRACING }}
+        LANGSMITH_ENDPOINT: ${{ secrets.LANGSMITH_ENDPOINT }}
+        LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+        LANGSMITH_PROJECT: ${{ secrets.LANGSMITH_PROJECT }}
