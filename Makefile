@@ -10,6 +10,9 @@ help: ## Affiche cette aide
 agent:
 	python -m scripts.agent
 
+fastmcp:
+	python -m scripts.run_mcp
+
 fastapi:
 	python -m scripts.run_api
 
