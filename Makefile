@@ -20,7 +20,7 @@ bpedb:
 	python -m scripts.data_bpe_insert
 
 build:
-	docker build -t projet-immo-chatbot:latest .
+	docker build -f docker/Dockerfile -t projet-immo-chatbot:latest .
 
 run:
 	docker rm -f immo-api || true
