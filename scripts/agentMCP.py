@@ -11,5 +11,3 @@ async def call_tool(tool : str, args : dict):
 
 
 asyncio.run(call_tool("commune_info_tools", {"code_insee": "37261"}))
-
-
