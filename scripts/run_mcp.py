@@ -10,4 +10,5 @@ from src.app.mcp.serverMCP import mcp
 
 if __name__ == "__main__":
 	print("Lancement du serveur MCP OutilsImmo")
-	mcp.run(transport="http", port=8000)
+	#mcp.run()
+	mcp.run(transport="http", port=8001)

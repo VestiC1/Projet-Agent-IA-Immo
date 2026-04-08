@@ -1,14 +1,15 @@
 import asyncio
 from fastmcp import Client
 
-client = Client("http://localhost:8000/mcp")
+client = Client("http://localhost:8001/mcp")
 
-async def call_tool(tool: str, name: str):
+
+async def call_tool(tool : str, args : dict):
     async with client:
-        result = await client.call_tool(tool, {"name": name})
+        result = await client.call_tool(tool, args)
         print(result)
 
-asyncio.run(call_tool("geocoding_tools", "49 blvd preuilly, 37000 Tours"))
-asyncio.run(call_tool("commune_info_tools", "37261"))
-#asyncio.run(call_tool("recent_transactions_tools", "37261", "maison", 10))
+
+asyncio.run(call_tool("commune_info_tools", {"code_insee": "37261"}))
+
 
