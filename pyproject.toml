@@ -29,6 +29,7 @@ dependencies = [
     "tenacity>=9.0.0",
     "pytest-timeout>=2.4.0",
     "fastmcp>=3.2.0",
+    "langchain-mcp-adapters>=0.2.2",
 ]
 
 [dependency-groups]
