@@ -20,11 +20,18 @@ bpedb:
 	python -m scripts.data_bpe_insert
 
 build:
-	docker build -t projet-immo-chatbot:latest .
+	docker build -f docker/Dockerfile -t projet-immo-chatbot:latest .
+
+build-mcp:
+	docker build -f docker/Dockerfile.mcp -t projet-immo-chatbot-mcp:latest .
 
 run:
 	docker rm -f immo-api || true
-	docker run --env-file .env -d -p 8000:8000 --name immo-api projet-immo-chatbot:latest
+	docker run --env-file .env -d -p 8000:8000 --dns 8.8.8.8 --name immo-api projet-immo-chatbot:latest
+
+run-mcp:
+	docker rm -f immo-mcp || true
+	docker run --env-file .env -d -p 8100:8100 --dns 8.8.8.8 --name immo-mcp projet-immo-chatbot-mcp:latest
 
 stop:
 	docker stop immo-api
