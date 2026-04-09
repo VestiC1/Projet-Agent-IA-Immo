@@ -1,21 +1,10 @@
-from langchain.agents import create_agent
-from langchain_mistralai import ChatMistralAI
-from langchain_google_genai import ChatGoogleGenerativeAI
-from config_agent import api_key_mistral, api_key_gemini
-from .clientMCP import create_client
-import asyncio
+from langchain.agents import create_agent as _create_agent
 
 
-llm_mistral = ChatMistralAI(model="mistral-small-latest", api_key=api_key_mistral, temperature=0)
-llm_gemini = ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key_gemini, temperature=0)
+async def create_agent(tools, llm):
 
-async def main():
-    client = await create_client()
-    tools = await client.get_tools()
-    #noms_outils = [outil.name for outil in tools]
-    #print("Outils MCP disponibles :", noms_outils)
-    agent = create_agent(
-        model=llm_mistral,
+    return _create_agent(
+        model=llm,
         tools=tools,
         system_prompt="""
             Vous êtes un agent immobilier virtuel. Répondez toujours en français.
@@ -47,5 +36,19 @@ async def main():
         """
     )
 
+
+async def main():
+    
+    client = await create_client()
+    tools = await client.get_tools()
+    noms_outils = [outil.name for outil in tools]
+    print("Outils MCP disponibles :", noms_outils)
+
+    agent = await create_agent(tools=tools, llm=llm_mistral)
+    
+
 if __name__ == "__main__":
+    from .clientMCP import create_client
+    import asyncio
+    from config_agent import llm_mistral
     asyncio.run(main())

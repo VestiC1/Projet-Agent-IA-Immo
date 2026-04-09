@@ -10,7 +10,8 @@ from src.agents.tools.do_prediction import estimate_price
 
 import aiohttp
 import asyncio
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter, retry_if_exception
 
 class TypeBien(str, Enum):
     maison = "maison"
@@ -25,14 +26,16 @@ mcp = FastMCP(
 )
 
 # ── Retry decorator pour les appels réseau ────────────────────────────────
+
+def _is_retryable(exc):
+    if isinstance(exc, aiohttp.ClientResponseError):
+        return exc.status in (429, 502, 503, 504)
+    return isinstance(exc, (aiohttp.ClientError, asyncio.TimeoutError, ConnectionError))
+
 network_retry = retry(
     stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-    retry=retry_if_exception_type((
-        aiohttp.ClientError,
-        asyncio.TimeoutError,
-        ConnectionError,
-    )),
+    wait=wait_exponential_jitter(initial=2, max=10, jitter=2),
+    retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
 
@@ -40,11 +43,14 @@ network_retry = retry(
 @mcp.tool
 @network_retry
 async def geocoding_tools(address: str) -> dict[str, Any]:
+    print(address)
     """Obtenir les coordonnées géographiques pour une adresse donnée."""
     if not address or len(address.strip()) < 2:
         return {"error": "Adresse invalide. Veuillez fournir une adresse plus précise."}
     try:
-        return await geocoding(address)
+        result = await geocoding(address)
+        print(result)
+        return result
     except (aiohttp.ClientError, asyncio.TimeoutError):
         raise  # laisse tenacity retry
     except Exception as e:
@@ -96,11 +102,9 @@ async def estimation_tools(
     surface_habitable: float,
     surface_terrain: float,
     nombre_pieces: int,
-) -> dict[str, Any]:
+) :
     """Obtenir une estimation sur le prix de vente d'une maison ou d'un appartement située à une adresse."""
     # Validation des inputs
-    if type_local not in ("maison", "appartement"):
-        return {"error": f"Type '{type_local}' non supporté. Utilisez 'maison' ou 'appartement'."}
     if surface_habitable <= 0:
         return {"error": "La surface habitable doit être supérieure à 0."}
     if nombre_pieces < 1:
@@ -108,7 +112,9 @@ async def estimation_tools(
     if not address or len(address.strip()) < 2:
         return {"error": "Adresse invalide."}
     try:
-        return estimate_price(address, type_local, surface_habitable, surface_terrain, nombre_pieces)
+        result = estimate_price(address, type_local, surface_habitable, surface_terrain, nombre_pieces)
+        print(result)
+        return result
     except Exception as e:
         return {"error": f"Estimation échouée: {type(e).__name__}: {e}"}
 
